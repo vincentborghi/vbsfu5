@@ -1,0 +1,167 @@
+// note_scraper.js - Injected into temporary Note tabs to scrape details
+
+console.log("Note Scraper: Script Injected.");
+
+/**
+ * Waits for an element matching the selector to appear in the DOM.
+ * Uses a shorter timeout as the page should be mostly loaded.
+ * @param {string} selector - CSS selector
+ * @param {Element} [baseElement=document] - Base element
+ * @param {number} [timeout=10000] - Timeout in ms
+ * @returns {Promise<Element|null>}
+ */
+function waitForElement(selector, baseElement = document, timeout = 10000) {
+    // console.log(`Note Scraper: Waiting for "${selector}"...`); // Optional: verbose logging
+    return new Promise((resolve) => {
+        const startTime = Date.now();
+        const interval = setInterval(() => {
+            const element = baseElement.querySelector(selector);
+            if (element) {
+                // console.log(`Note Scraper: Found "${selector}"`);
+                clearInterval(interval);
+                resolve(element);
+            } else if (Date.now() - startTime > timeout) {
+                console.warn(`Note Scraper: Timeout waiting for "${selector}" in ${document.URL}`);
+                clearInterval(interval);
+                resolve(null); // Resolve with null on timeout
+            }
+        }, 250);
+    });
+}
+
+// Main scraping logic wrapped in an async function
+async function scrapeNoteDetails() {
+    console.log("Note Scraper: Starting scrapeNoteDetails.");
+    let title = null;
+    let author = null;
+    let description = null;
+    let createdDateText = null;
+    let isPublic = false; // VB Default to internal/false
+
+    try {
+        // --- Extract Description ---
+        // Wait for the layout item container first for stability
+        const descLayoutItemSelector = 'records-record-layout-item[field-label="Description"]';
+        const descLayoutItem = await waitForElement(descLayoutItemSelector);
+        console.log(`Note Scraper: Description layout item found?`, !!descLayoutItem);
+        if (descLayoutItem) {
+            // Try the rich text span selector within the item
+            const descTextElement = await waitForElement('records-formatted-rich-text span[part="formatted-rich-text"]', descLayoutItem, 5000); // Shorter wait inside
+            console.log(`Note Scraper: Description rich text span found?`, !!descTextElement);
+            if (descTextElement) {
+                description = descTextElement.innerHTML?.trim(); // Get innerHTML for rich text
+                console.log(`Note Scraper: Extracted description length:`, description?.length);
+            } else {
+                 console.warn("Note Scraper: Found Description container, but inner rich text span not found.");
+                 description = descLayoutItem.textContent?.trim(); // Fallback to all text in container
+                 description = `[Fallback TextContent] ${description}`;
+            }
+        } else {
+            console.warn("Note Scraper: Description layout item not found.");
+            description = "N/A (Description Container Not Found)";
+        }
+
+        // VB BEGIN
+	// --- Extract Visibility ---
+	console.log("Note Scraper: Looking for Visibility checkbox...");
+	const visibilityItem = await waitForElement('records-record-layout-item[field-label="Visible to Customer"]');
+	if (visibilityItem) {
+	    const checkbox = visibilityItem.querySelector('input[type="checkbox"]');
+	    if (checkbox) {
+		isPublic = checkbox.checked; // Check the element's property
+		console.log("Note Scraper: Visibility checkbox found. Is checked (public)?", isPublic);
+	    } else {
+		// Fallback for lightning-input component (less common for readonly view but possible)
+		const inputComponent = visibilityItem.querySelector('lightning-input');
+		if (inputComponent && inputComponent.hasAttribute('checked')) {
+		    isPublic = true;
+		    console.log("Note Scraper: Visibility lightning-input has 'checked' attribute. Setting isPublic=true");
+		} else {
+		    console.warn("Note Scraper: Visibility checkbox/input not found/checked.");
+		}
+	    }
+	} else {
+	    console.warn("Note Scraper: Visibility layout item [field-label='Visible to Customer'] not found.");
+	}
+        // VB END
+
+        // *** FIXED TITLE EXTRACTION LOGIC ***
+        // The title is in a field layout item, not the main page H1.
+        // The list view provides the label "PSM Note Name", which is the key.
+        const titleLayoutItem = await waitForElement('records-record-layout-item[field-label="PSM Note Name"]');
+        if (titleLayoutItem) {
+            const titleValueElement = await waitForElement('lightning-formatted-text', titleLayoutItem, 5000);
+            if (titleValueElement) {
+                title = titleValueElement.textContent?.trim();
+                console.log("Note Scraper: Extracted Title from layout item:", title);
+            } else {
+                console.warn('Note Scraper: Found title layout item, but no lightning-formatted-text value element inside.');
+            }
+        } else {
+            console.warn('Note Scraper: Title layout item with label "PSM Note Name" not found.');
+        }
+        
+        // --- Extract Created By for Author ---
+        const createdByItemForAuthor = await waitForElement('records-record-layout-item[field-label="Created By"]');
+        if (createdByItemForAuthor) {
+            const authorElement = await waitForElement('force-lookup a', createdByItemForAuthor);
+            if (authorElement) {
+                author = authorElement.textContent?.trim();
+                console.log("Note Scraper: Extracted Author:", author);
+            } else {
+                console.warn("Note Scraper: Author link not found in 'Created By' item.");
+            }
+        }
+
+        // --- Extract Created Date ---
+        // Wait for the 'Created By' item container
+        const createdByItemSelector = 'records-record-layout-item[field-label="Created By"]';
+        const createdByItem = await waitForElement(createdByItemSelector);
+         console.log(`Note Scraper: 'Created By' layout item found?`, !!createdByItem);
+
+        if (createdByItem) {
+            // Wait for the specific date element within the modstamp
+            const dateElementSelector = 'records-modstamp lightning-formatted-text';
+            const dateElement = await waitForElement(dateElementSelector, createdByItem, 5000); // Shorter wait inside
+            console.log(`Note Scraper: Date element found?`, !!dateElement);
+            if (dateElement) {
+                createdDateText = dateElement.textContent?.trim();
+                console.log("Note Scraper: Extracted createdDateText:", createdDateText);
+            } else {
+                // Fallback if lightning-formatted-text isn't used directly
+                const modstampElement = createdByItem.querySelector('records-modstamp');
+                if (modstampElement) {
+                     let modstampText = modstampElement.textContent?.trim();
+                     console.log("Note Scraper: Fallback - records-modstamp textContent:", modstampText);
+                     const commaIndex = modstampText.lastIndexOf(','); // Simple split attempt
+                     if (commaIndex !== -1) createdDateText = modstampText.substring(commaIndex + 1).trim();
+                     else createdDateText = modstampText; // Assume it's just the date
+                     console.log("Note Scraper: Fallback extracted date text:", createdDateText);
+                } else {
+                    console.warn(`Note Scraper: Failed to find date element or records-modstamp within Created By item.`);
+                }
+            }
+        } else {
+             console.warn(`Note Scraper: Failed to find '${createdByItemSelector}'.`);
+        }
+
+    } catch (error) {
+        console.error("Note Scraper: Error during scraping:", error);
+        description = description || `Error during scraping: ${error.message}`; // Append error if desc wasn't found
+    }
+
+    // Send results back to the background script
+    console.log("Note Scraper: Sending results back:", { title: title, description: description ?? '', createdDateText: createdDateText });
+    chrome.runtime.sendMessage({
+        type: 'noteScrapeResult',
+        title: title, // new
+        author: author, // new
+        description: description ?? '', // Ensure string even if null
+        createdDateText: createdDateText, // Send raw text for parsing in background
+	isPublic: isPublic // VB
+    });
+}
+
+// Execute the scraping
+scrapeNoteDetails();
+

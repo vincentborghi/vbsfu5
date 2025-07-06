@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "PSM Helper",
+  "version": "2.5",
+  "description": "Provides several functions to circumvent some PSM Salesforce annoyances.",
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://myatos.lightning.force.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://myatos.lightning.force.com/lightning/r/Case/*",
+        "*://myatos.lightning.force.com/lightning/r/WorkOrder/*"
+      ],
+      "js": [
+        "content.js",
+        "panel_injector.js"
+      ],
+      "css": [
+        "styles.css"
+      ]
+    }
+  ]
+}
