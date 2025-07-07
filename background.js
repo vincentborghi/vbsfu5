@@ -99,6 +99,7 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
                         chrome.runtime.onMessage.removeListener(listener);
                         resolve(message);
                     }
+                    // return true;
                     return true;
                 };
                 chrome.runtime.onMessage.addListener(listener);

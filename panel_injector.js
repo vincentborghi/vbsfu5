@@ -128,6 +128,92 @@ async function injectCustomHeaderInfo() {
     if (statusDiv) statusDiv.textContent = 'Key info shown.';
 }
 
+/**
+ * Finds the "From" address dropdown in a Salesforce "New Email" form and selects a specific address.
+ * This version is updated to work with Salesforce Aura components.
+ */
+async function autofillFromAddress() {
+    console.log('autofillFromAddress: "Autofill From Address" button clicked.');
+    const statusDiv = document.getElementById('vbsfu-status');
+    statusDiv.textContent = 'Searching for "From" dropdown...';
+    statusDiv.style.color = 'var(--vbsfu-status-warn)';
+
+    // Step 1: Find the "From" label span.
+    console.log('autofillFromAddress: Searching for label span with text "From".');
+    const allLabels = document.querySelectorAll('span.form-element__label');
+    let fromLabel = null;
+    for (const label of allLabels) {
+        // The text can be in the span directly or in a child span.
+        if (label.textContent.trim() === 'From') {
+            fromLabel = label;
+            console.log('autofillFromAddress: Found "From" label element:', fromLabel);
+            break;
+        }
+    }
+
+    if (!fromLabel) {
+        console.error('autofillFromAddress: Could not find a label for "From". The "New Email" form might not be open.');
+        statusDiv.textContent = 'Error: "From" field label not found.';
+        statusDiv.style.color = 'var(--vbsfu-status-error)';
+        return;
+    }
+
+    // Step 2: Find the associated trigger link (<a>) from the label's parent container.
+    const container = fromLabel.closest('.uiInput.uiInputSelect');
+    if (!container) {
+        console.error('autofillFromAddress: Could not find the parent container (.uiInput.uiInputSelect) for the label.');
+        statusDiv.textContent = 'Error: "From" field container not found.';
+        statusDiv.style.color = 'var(--vbsfu-status-error)';
+        return;
+    }
+    console.log('autofillFromAddress: Found parent container:', container);
+    
+    const dropdownTrigger = container.querySelector('a[role="combobox"]');
+    if (!dropdownTrigger) {
+         console.error('autofillFromAddress: Could not find the dropdown trigger link inside the container.');
+         statusDiv.textContent = 'Error: Cannot click "From" dropdown.';
+         statusDiv.style.color = 'var(--vbsfu-status-error)';
+         return;
+    }
+
+    console.log('autofillFromAddress: Clicking the dropdown trigger.', dropdownTrigger);
+    dropdownTrigger.click();
+
+    // Step 3: Wait for the desired option to appear and click it. In Aura, this is typically a `li.uiMenuItem a`.
+    const desiredEmail = 'PSM-Support-Email <psm-support-email@atos.net>';
+    const optionSelector = `li.uiMenuItem a[title="${desiredEmail}"]`;
+    
+    console.log(`autofillFromAddress: Waiting for option with selector: "${optionSelector}"`);
+    const emailOptionElement = await waitForElement(optionSelector, document, 3000);
+
+    if (!emailOptionElement) {
+        console.error(`autofillFromAddress: The email option "${desiredEmail}" was not found in the dropdown.`);
+        statusDiv.textContent = `Error: Option "${desiredEmail}" not found.`;
+        statusDiv.style.color = 'var(--vbsfu-status-error)';
+        if (dropdownTrigger.getAttribute('aria-expanded') === 'true') {
+            dropdownTrigger.click();
+        }
+        return;
+    }
+
+    console.log('autofillFromAddress: Found email option element. Clicking it.', emailOptionElement);
+    emailOptionElement.click();
+
+    // A brief pause to allow the UI to update, then confirm the change.
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const selectedText = dropdownTrigger.textContent?.trim();
+    
+    if (selectedText.includes(desiredEmail)) {
+        statusDiv.textContent = `Autofilled "${desiredEmail}"!`;
+        statusDiv.style.color = 'var(--vbsfu-status-success)';
+        console.log('autofillFromAddress: Successfully autofilled. New value confirmed.');
+    } else {
+        console.warn('autofillFromAddress: Clicked the option, but the new value was not immediately reflected.');
+        statusDiv.textContent = 'Autofill may have failed.';
+        statusDiv.style.color = 'var(--vbsfu-status-warn)';
+    }
+}
+
 
 // --- Draggable Panel Logic ---
 function makePanelDraggable(panel, header) {
@@ -189,6 +275,11 @@ function injectUI() {
     showInfoButton.textContent = 'Show Key Info';
     showInfoButton.className = 'vbsfu-button';
     
+    const autofillButton = document.createElement('button');
+    autofillButton.id = 'vbsfu-autofill-from';
+    autofillButton.textContent = 'Autofill From Address';
+    autofillButton.className = 'vbsfu-button';
+
     const generateButton = document.createElement('button');
     generateButton.id = 'vbsfu-generate';
     generateButton.textContent = 'Generate Full View';
@@ -215,6 +306,7 @@ function injectUI() {
     
     // New button order
     content.appendChild(showInfoButton);
+    content.appendChild(autofillButton);
     content.appendChild(generateButton);
     content.appendChild(copyButton);
     content.appendChild(aboutButton);
@@ -271,6 +363,9 @@ function injectUI() {
     
     // Add click listener for the new "Show Key Info" button
     showInfoButton.onclick = injectCustomHeaderInfo;
+
+    // Add click listener for the new "Autofill From" button
+    autofillButton.onclick = autofillFromAddress;
 
     debugButton.onclick = showDebugInfo;
 
