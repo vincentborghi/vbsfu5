@@ -34,7 +34,7 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    padding-bottom: 8px;
+    /* padding-bottom: 8px; */ /* Removed for compactness */
 }
 
 #vbsfu-panel.vbsfu-visible {
@@ -44,7 +44,7 @@
 #vbsfu-header {
     cursor: grab;
     background-color: var(--vbsfu-button-hover-bg); /* Use darker yellow for header */
-    padding: 8px 12px;
+    padding: 6px 12px; /* original: 8px 12px; */
     text-align: center;
     border-bottom: 1px solid var(--vbsfu-border-color);
     border-radius: 8px 0 0 0;
@@ -62,20 +62,20 @@
 }
 
 #vbsfu-content {
-    padding: 12px;
+    padding: 6px 12px; /* original: 12px; */
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px; /* original: 8px; */
 }
 
 .vbsfu-button {
-    padding: 10px 12px;
+    padding: 6px 12px; /* original: 10px 12px; */
     cursor: pointer;
     border: 1px solid var(--vbsfu-button-border);
     background-color: var(--vbsfu-button-bg);
     color: var(--vbsfu-button-text);
-    border-radius: 5px;
-    font-size: 14px;
+    border-radius: 6px;
+    font-size: 14px; /* original: 14px; */
     font-weight: bold; /* Make button text bold */
     text-align: center;
     transition: background-color 0.2s, box-shadow 0.2s;
@@ -116,12 +116,12 @@
 }
 
 #vbsfu-status {
-    font-size: 14px; /* Updated size */
+    font-size: 13px; /* original: 14px; */
     font-weight: 600; /* Updated weight */
-    margin-top: 8px;
+    margin-top: 4px; /* original: 8px; */
     text-align: center;
     min-height: 1.2em;
-    padding: 0 10px;
+    padding: 0 10px 4px; /* Adjusted from original padding */
 }
 
 /* --- Modal Styles --- */
