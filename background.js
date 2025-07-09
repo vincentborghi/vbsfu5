@@ -167,6 +167,18 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
     return resultsMap;
 }
 
+/**
+ * Sends a styled log message to a specific tab's content script.
+ * @param {number|null} tabId The ID of the tab to send the message to.
+ * @param {string} message The message to log.
+ */
+function logToTab(tabId, message) {
+    if (tabId) {
+        chrome.tabs.sendMessage(tabId, { action: "log", message: message })
+            .catch(err => console.warn(`Background: Could not log to tab ${tabId}: ${err.message}. It might have been closed or lacked the content script.`));
+    }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "initiateGenerateFullCaseView") {
         if (sender.tab?.id) { chrome.tabs.sendMessage(sender.tab.id, { action: "generateFullView" }); }
@@ -194,7 +206,109 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             });
         return true;
     }
+
+    if (message.action === "findAndOpenCase" && message.caseNumber) {
+        console.log(`Background: Received findAndOpenCase for case number: ${message.caseNumber}`);
+        logToTab(sender.tab?.id, `Received request to find Case ${message.caseNumber}.`);
+        const senderTabId = sender.tab?.id; // Get the original tab ID
+        const caseNumber = message.caseNumber;
+        const reportUrl = `https://myatos.lightning.force.com/lightning/r/Report/00ObD0000026ectUAA/view?fv0=${caseNumber}`;
+        let tempTab = null;
+
+        // This is an async IIFE (Immediately Invoked Function Expression)
+        (async () => {
+            try {
+                logToTab(senderTabId, `Opening report in a temporary tab...`);
+                // Create the tab and make it active to force a full render.
+                tempTab = await chrome.tabs.create({ url: reportUrl, active: true });
+                
+                // IMPORTANT: Immediately switch focus back to the original tab.
+                if (senderTabId) {
+                    logToTab(senderTabId, `Switching focus back to this tab.`);
+                    await chrome.tabs.update(senderTabId, { active: true });
+                    console.log(`Background: Switched focus back to original tab ID: ${senderTabId}`);
+                }
+
+                const tempTabId = tempTab.id;
+                if (!tempTabId) throw new Error("Failed to create temporary report tab.");
+
+                logToTab(senderTabId, `Waiting for report tab to finish loading...`);
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        chrome.tabs.onUpdated.removeListener(listener);
+                        reject(new Error(`Timeout (30s) waiting for tab ${tempTabId} to load.`));
+                    }, 30000); // Increased to 30 seconds
+
+                    const listener = (tabId, changeInfo, tab) => {
+                        if (tabId === tempTabId && tab.status === 'complete') {
+                            // We wait for the tab to be 'complete' before injecting the script.
+                            if (tab.url?.includes('Report')) {
+                                clearTimeout(timeout);
+                                chrome.tabs.onUpdated.removeListener(listener);
+                                console.log(`Background: Tab ${tempTabId} loaded successfully.`);
+                                resolve();
+                            }
+                        }
+                    };
+                    chrome.tabs.onUpdated.addListener(listener);
+                });
+
+                // Set up a listener for the result from the content script
+                const resultPromise = new Promise((resolve, reject) => {
+                     const messageListener = (msg, sender) => {
+                        if (sender.tab?.id === tempTabId && (msg.type === 'caseIdFound' || msg.type === 'caseIdNotFound')) {
+                            chrome.runtime.onMessage.removeListener(messageListener);
+                            resolve(msg);
+                        }
+                        return true; // Keep listener active for other messages
+                    };
+                    chrome.runtime.onMessage.addListener(messageListener);
+                });
+
+                logToTab(senderTabId, `Injecting finder script into report tab...`);
+                await chrome.scripting.executeScript({ target: { tabId: tempTabId }, files: ['case_finder.js'] });
+
+                logToTab(senderTabId, `Waiting for finder script to report back...`);
+                const result = await resultPromise;
+
+                if (result.type === 'caseIdFound' && result.caseId) {
+                    logToTab(senderTabId, `Success! Found Case ID: ${result.caseId}.`);
+                    const finalCaseUrl = `https://myatos.lightning.force.com/lightning/r/Case/${result.caseId}/view`;
+                    logToTab(senderTabId, `Opening final Case page...`);
+                    await chrome.tabs.create({ url: finalCaseUrl, active: true });
+                } else {
+                    logToTab(senderTabId, `Error: Failed to find Case ID. Reason: ${result.reason}.`);
+                    console.error(`Background: Failed to find Case ID. Reason: ${result.reason}. The report tab will remain open for debugging.`);
+                    // Make the tab active so the user can see the error
+                    await chrome.tabs.update(tempTabId, { active: true });
+                    // Do NOT close the tab automatically if it fails, so the user can see why.
+                    return; // Stop execution
+                }
+
+            } catch (error) {
+                console.error("Background: Error in findAndOpenCase flow:", error);
+                logToTab(senderTabId, `A critical error occurred: ${error.message}`);
+                if (tempTab?.id) {
+                    // If something went wrong, show the tab to the user
+                    await chrome.tabs.update(tempTab.id, { active: true });
+                }
+            } finally {
+                // Close the temp tab only on success
+                 if (tempTab?.id && !tempTab.active) {
+                    try {
+                        await chrome.tabs.remove(tempTab.id);
+                        console.log(`Background: Successfully closed temporary tab ${tempTab.id}`);
+                    } catch (e) {
+                        console.warn(`Background: Could not close temp tab ${tempTab.id}: ${e.message}`);
+                    }
+                }
+            }
+        })();
+        // We don't use sendResponse here as the actions (opening tabs) are the response.
+        return true; // Indicates an async response
+    }
     return false;
 });
 
 console.log("Background: Service worker listeners attached and ready.");
+// End of file

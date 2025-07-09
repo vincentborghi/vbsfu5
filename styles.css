@@ -68,6 +68,23 @@
     gap: 6px; /* original: 8px; */
 }
 
+/* New container for the case opener */
+#vbsfu-case-opener-container {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px; /* Add some space below */
+}
+
+/* Style for the new input field */
+#vbsfu-case-input {
+    flex-grow: 1; /* Take up available space */
+    padding: 6px 8px;
+    border: 1px solid var(--vbsfu-border-color);
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 0; /* Important for flexbox shrinking */
+}
+
 .vbsfu-button {
     padding: 6px 12px; /* original: 10px 12px; */
     cursor: pointer;
@@ -190,3 +207,4 @@
 #vbsfu-modal-close:hover {
     color: #333;
 }
+// End of file

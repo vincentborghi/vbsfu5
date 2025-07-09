@@ -1,4 +1,3 @@
-
 // content.js - 2025-06-27
 
 
@@ -883,5 +882,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
 
+    // Listener for logs sent from the background script
+    if (message.action === "log") {
+        console.log(`%c[PSM Helper | Background] %c${message.message}`,
+            "color: #005a9e; font-weight: bold;",
+            "color: #333;"
+        );
+        return false; // No response needed
+    }
+
     return false;
 });
+// End of file

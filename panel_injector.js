@@ -160,6 +160,56 @@ async function injectCustomHeaderInfo() {
     }
 }
 
+/**
+ * Creates an HTML element and assigns properties to it.
+ * @param {string} tag - The HTML tag for the element (e.g., 'div', 'button').
+ * @param {object} properties - An object of properties to assign to the element.
+ * @returns {HTMLElement} The created and configured element.
+ */
+function myCreateElement(tag, properties) {
+    console.log(`myCreateElement: Creating <${tag}> with properties:`, properties);
+    const element = document.createElement(tag);
+    Object.assign(element, properties);
+    return element;
+}
+
+/**
+ * Finds a <select> menu, sets its value, and dispatches a 'change' event.
+ * @param {string} selector - The CSS selector for the <select> element.
+ * @param {string} value - The value to set for the select element.
+ * @param {string} fieldName - A human-readable name for the field for logging.
+ * @param {string} [consoleMsgPrefix='setSelectMenuValue'] - An optional prefix for console messages.
+ * @returns {Promise<boolean>} - True if the value was set successfully, false otherwise.
+ */
+async function setSelectMenuValue(selector, value, fieldName, consoleMsgPrefix = 'setSelectMenuValue') {
+    console.log(`${consoleMsgPrefix}: Attempting to set ${fieldName} with selector: "${selector}"`);
+    const selectElement = await waitForElement(selector, document, 3000);
+
+    if (!selectElement) {
+        console.error(`${consoleMsgPrefix}: Could not find the ${fieldName} select element using selector: "${selector}"`);
+        return false;
+    }
+    console.log(`${consoleMsgPrefix}: Found ${fieldName} select element.`, selectElement);
+
+    // Set the value directly to the correct option value
+    selectElement.value = value;
+    console.log(`${consoleMsgPrefix}: Set ${fieldName} value to "${value}"`);
+
+    // Dispatch a 'change' event. This is crucial for the LWC to recognize the update.
+    const event = new Event('change', { bubbles: true });
+    selectElement.dispatchEvent(event);
+    console.log(`${consoleMsgPrefix}: Dispatched 'change' event for ${fieldName}.`);
+
+    // Brief pause to allow the UI to react and verification
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (selectElement.value === value) {
+        console.log(`${consoleMsgPrefix}: Verification successful for ${fieldName}.`);
+        return true;
+    } else {
+        console.warn(`${consoleMsgPrefix}: Verification FAILED for ${fieldName}. Current value is "${selectElement.value}"`);
+        return false;
+    }
+}
 
 async function autofillCommunity() {
     console.log('autofillCommunity: called');
@@ -167,70 +217,30 @@ async function autofillCommunity() {
     statusDiv.textContent = 'Autofilling Community Info...';
     statusDiv.style.color = 'var(--vbsfu-status-warn)';
 
-    console.log("autofillCommunity: Looking for LWC dropdowns for Language, Timezone, Locale, Currency, and Email Encoding.");
+    const consolePrefix = 'autofillCommunity';
+    console.log(`${consolePrefix}: Looking for LWC dropdowns for Language, Timezone, Locale, Currency, and Email Encoding.`);
 
-    // Define selectors and desired values for the fields
-    const languageSelectSelector = 'select[name="choLanguage"]';
-    const desiredLanguageValue = 'chopickLanguage.fr';
-    const desiredLanguageText = 'French';
+    // Define fields in a structured array for easier management
+    const fieldsToAutofill = [
+        { name: 'Language',       selector: 'select[name="choLanguage"]',       value: 'chopickLanguage.fr' },           // French
+        { name: 'Timezone',       selector: 'select[name="pickTimezone"]',      value: 'chopickTimezone.Europe/Paris' }, // Europe/Paris
+        { name: 'Locale',         selector: 'select[name="choLocale"]',         value: 'chopickLocale.fr_FR' },          // French (France)
+        { name: 'Currency',       selector: 'select[name="choCurrency"]',       value: 'chopickCurrency.EUR' },          // EUR - Euro
+        { name: 'Email Encoding', selector: 'select[name="pickEmailEncoding"]', value: 'chopickEmailEncoding.UTF-8' }    // Unicode (UTF-8)
+    ];
 
-    const timezoneSelectSelector = 'select[name="pickTimezone"]';
-    const desiredTimezoneValue = 'chopickTimezone.Europe/Paris';
-    const desiredTimezoneText = 'Europe/Paris';
-
-    const localeSelectSelector = 'select[name="choLocale"]';
-    const desiredLocaleValue = 'chopickLocale.fr_FR'; // Sensible default for French
-    const desiredLocaleText = 'French (France)';
-
-    const currencySelectSelector = 'select[name="choCurrency"]';
-    const desiredCurrencyValue = 'chopickCurrency.EUR';
-    const desiredCurrencyText = 'EUR';
-
-    const emailEncodingSelectSelector = 'select[name="pickEmailEncoding"]';
-    const desiredEmailEncodingValue = 'chopickEmailEncoding.UTF-8';
-    const desiredEmailEncodingText = 'Unicode (UTF-8)';
-
-    // Helper function to find a select, set its value, and dispatch the necessary event
-    const setSelectValue = async (selector, value, fieldName) => {
-        console.log(`autofillCommunity: Attempting to set ${fieldName} with selector: "${selector}"`);
-        const selectElement = await waitForElement(selector, document, 3000);
-
-        if (!selectElement) {
-            console.error(`autofillCommunity: Could not find the ${fieldName} select element using selector: "${selector}"`);
-            return false;
+    let allSuccessful = true;
+    // Loop through and set each field's value
+    for (const field of fieldsToAutofill) {
+        const success = await setSelectMenuValue(field.selector, field.value, field.name, consolePrefix);
+        if (!success) {
+            allSuccessful = false; // If any field fails, mark the whole operation as failed
         }
-        console.log(`autofillCommunity: Found ${fieldName} select element.`, selectElement);
-
-        // Set the value directly to the correct option value
-        selectElement.value = value;
-        console.log(`autofillCommunity: Set ${fieldName} value to "${value}"`);
-
-        // Dispatch a 'change' event. This is crucial for the LWC to recognize the update.
-        const event = new Event('change', { bubbles: true });
-        selectElement.dispatchEvent(event);
-        console.log(`autofillCommunity: Dispatched 'change' event for ${fieldName}.`);
-
-        // Brief pause to allow the UI to react and verification
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (selectElement.value === value) {
-            console.log(`autofillCommunity: Verification successful for ${fieldName}.`);
-            return true;
-        } else {
-            console.warn(`autofillCommunity: Verification FAILED for ${fieldName}. Current value is "${selectElement.value}"`);
-            return false;
-        }
-    };
-
-    // Execute the autofill for each field sequentially
-    const langSuccess = await setSelectValue(languageSelectSelector, desiredLanguageValue, 'Language');
-    const timezoneSuccess = await setSelectValue(timezoneSelectSelector, desiredTimezoneValue, 'Timezone');
-    const localeSuccess = await setSelectValue(localeSelectSelector, desiredLocaleValue, 'Locale');
-    const currencySuccess = await setSelectValue(currencySelectSelector, desiredCurrencyValue, 'Currency');
-    const emailEncodingSuccess = await setSelectValue(emailEncodingSelectSelector, desiredEmailEncodingValue, 'Email Encoding');
+    }
 
     // Update the status panel based on the outcome
-    if (langSuccess && timezoneSuccess && localeSuccess && currencySuccess && emailEncodingSuccess) {
-        statusDiv.textContent = `Autofilled 5 fields successfully!`;
+    if (allSuccessful) {
+        statusDiv.textContent = `Autofilled ${fieldsToAutofill.length} fields successfully!`;
         statusDiv.style.color = 'var(--vbsfu-status-success)';
     } else {
         statusDiv.textContent = 'Error: Failed to autofill one or more fields.';
@@ -382,57 +392,31 @@ function injectUI() {
     }
     console.log('injectUI: Injecting main UI panel...');
 
-    const panel = document.createElement('div');
-    panel.id = 'vbsfu-panel';
-    const header = document.createElement('div');
-    header.id = 'vbsfu-header';
-    const title = document.createElement('h4');
-    title.textContent = 'PSM Helper';
+    // Use the helper function to create elements concisely
+    const panel = myCreateElement('div', { id: 'vbsfu-panel' });
+    const header = myCreateElement('div', { id: 'vbsfu-header' });
+    const title = myCreateElement('h4', { textContent: 'PSM Helper' });
     header.appendChild(title);
 
-    const content = document.createElement('div');
-    content.id = 'vbsfu-content';
+    const content = myCreateElement('div', { id: 'vbsfu-content' });
 
-    const showInfoButton = document.createElement('button');
-    showInfoButton.id = 'vbsfu-show-info';
-    showInfoButton.textContent = 'Show Key Info';
-    showInfoButton.className = 'vbsfu-button';
-    
-    const autofillButton = document.createElement('button');
-    autofillButton.id = 'vbsfu-autofill-from';
-    autofillButton.textContent = 'Autofill From Address';
-    autofillButton.className = 'vbsfu-button';
+    const caseOpenerContainer = myCreateElement('div', { id: 'vbsfu-case-opener-container' });
+    const caseInput = myCreateElement('input', { id: 'vbsfu-case-input', type: 'text', placeholder: 'Case Number...' });
+    const openCaseButton = myCreateElement('button', { id: 'vbsfu-open-case', textContent: 'Go', className: 'vbsfu-button' });
+    caseOpenerContainer.append(caseInput, openCaseButton);
 
-    const autofillCommButton = document.createElement('button');
-    autofillCommButton.id = 'vbsfu-autofill-comm';
-    autofillCommButton.textContent = 'Autofill Community Info';
-    autofillCommButton.className = 'vbsfu-button';
+    const showInfoButton = myCreateElement('button', { id: 'vbsfu-show-info', textContent: 'Show Key Info', className: 'vbsfu-button' });
+    const autofillButton = myCreateElement('button', { id: 'vbsfu-autofill-from', textContent: 'Autofill From Address', className: 'vbsfu-button' });
+    const autofillCommButton = myCreateElement('button', { id: 'vbsfu-autofill-comm', textContent: 'Autofill Community Info', className: 'vbsfu-button' });
+    const generateButton = myCreateElement('button', { id: 'vbsfu-generate', textContent: 'Generate Full View', className: 'vbsfu-button' });
+    const copyButton = myCreateElement('button', { id: 'vbsfu-copy', textContent: 'Copy Record Link', className: 'vbsfu-button' });
+    const aboutButton = myCreateElement('button', { id: 'vbsfu-about', textContent: 'About', className: 'vbsfu-button' });
+    const debugButton = myCreateElement('button', { id: 'vbsfu-debug', textContent: 'Debug to console', className: 'vbsfu-button' });
 
-    const generateButton = document.createElement('button');
-    generateButton.id = 'vbsfu-generate';
-    generateButton.textContent = 'Generate Full View';
-    generateButton.className = 'vbsfu-button';
-
-    const copyButton = document.createElement('button');
-    copyButton.id = 'vbsfu-copy';
-    copyButton.textContent = 'Copy Record Link';
-    copyButton.className = 'vbsfu-button';
-
-    const aboutButton = document.createElement('button');
-    aboutButton.id = 'vbsfu-about';
-    aboutButton.textContent = 'About';
-    aboutButton.className = 'vbsfu-button';
-
-    const debugButton = document.createElement('button');
-    debugButton.id = 'vbsfu-debug';
-    debugButton.textContent = 'Debug to console';
-    debugButton.className = 'vbsfu-button';
-
-    const statusDiv = document.createElement('div');
-    statusDiv.id = 'vbsfu-status';
-    statusDiv.textContent = 'Ready.';
+    const statusDiv = myCreateElement('div', { id: 'vbsfu-status', textContent: 'Ready.' });
     
     // New button order
+    content.appendChild(caseOpenerContainer);
     content.appendChild(showInfoButton);
     content.appendChild(autofillButton);
     content.appendChild(autofillCommButton);
@@ -445,22 +429,14 @@ function injectUI() {
     panel.appendChild(content);
     panel.appendChild(statusDiv);
 
-    const toggleButton = document.createElement('button');
-    toggleButton.id = 'vbsfu-toggle';
-    toggleButton.innerHTML = '&#x1F6E0;&#xFE0F;';
-    toggleButton.setAttribute('aria-label', 'Toggle Panel');
+    const toggleButton = myCreateElement('button', { id: 'vbsfu-toggle', innerHTML: '&#x1F6E0;&#xFE0F;', 'aria-label': 'Toggle Panel' });
 
-    const modalOverlay = document.createElement('div');
-    modalOverlay.id = 'vbsfu-modal-overlay';
-    const modalContent = document.createElement('div');
-    modalContent.id = 'vbsfu-modal-content';
-    const modalClose = document.createElement('button');
-    modalClose.id = 'vbsfu-modal-close';
-    modalClose.innerHTML = '&times;';
-    const modalTitle = document.createElement('h5');
-    modalTitle.textContent = 'PSM Helper';
-    const modalBody = document.createElement('div');
-    modalBody.id = 'vbsfu-modal-body';
+    const modalOverlay = myCreateElement('div', { id: 'vbsfu-modal-overlay' });
+    const modalContent = myCreateElement('div', { id: 'vbsfu-modal-content' });
+    const modalClose = myCreateElement('button', { id: 'vbsfu-modal-close', innerHTML: '&times;' });
+    const modalTitle = myCreateElement('h5', { textContent: 'PSM Helper' });
+    const modalBody = myCreateElement('div', { id: 'vbsfu-modal-body' });
+    
     const extensionVersion = chrome.runtime.getManifest().version;
     modalBody.innerHTML = `<p><strong>Version:</strong> ${extensionVersion} (July 2025)</p>
       <p>This Chrome extension is experimental and is not an official tool from Atos IT (the developers of PSM).</p>
@@ -570,6 +546,29 @@ function injectUI() {
         }
     };
 
+    openCaseButton.onclick = () => {
+        const caseNumber = caseInput.value.trim();
+        console.log(`openCaseButton.onclick: 'Go' button clicked for case number: "${caseNumber}"`);
+        if (!caseNumber || !/^\d+$/.test(caseNumber)) {
+            console.error("openCaseButton.onclick: Invalid case number provided.");
+            statusDiv.textContent = 'Error: Enter a valid case number.';
+            statusDiv.style.color = 'var(--vbsfu-status-error)';
+            caseInput.focus();
+            return;
+        }
+
+        statusDiv.textContent = `Finding Case ${caseNumber}...`;
+        statusDiv.style.color = 'var(--vbsfu-status-warn)';
+        openCaseButton.disabled = true;
+        chrome.runtime.sendMessage({ action: "findAndOpenCase", caseNumber: caseNumber }, (response) => {
+            // The response handling will happen via status updates from the background script
+            // This is just to confirm the message was sent.
+            console.log("openCaseButton.onclick: Message 'findAndOpenCase' sent to background script.");
+            // Re-enable the button after a short delay
+            setTimeout(() => { openCaseButton.disabled = false; }, 2000);
+        });
+    };
+
     copyButton.onclick = async () => {
         console.log("copyButton.onclick: 'Copy Record Link' button clicked.");
         statusDiv.textContent = 'Copying link...';
@@ -626,3 +625,4 @@ function init() {
 }
 
 init();
+// End of file
