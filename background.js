@@ -1,6 +1,20 @@
-// background.js - With Unified Data Model and Enhanced Logging
+// background.js - With Unified Data Model, Enhanced Logging, and Leveled Logging
 
-console.log("Background service worker started.");
+// The logger is now imported as an ES module.
+// The global psmhLogger will be initialized by logger.js itself.
+import './logger.js';
+const logger = globalThis.psmhLogger;
+
+logger.info("Background service worker started.");
+
+// Set a default log level on first install.
+chrome.runtime.onInstalled.addListener(async (details) => {
+    if (details.reason === 'install') {
+        logger.info("First install: setting default log level to 'INFO'.");
+        await chrome.storage.sync.set({ logLevel: 'INFO' });
+    }
+});
+
 
 /**
  * Parses a date string into a Date object.
@@ -10,6 +24,7 @@ console.log("Background service worker started.");
  */
 function parseDateString(dateString) {
     if (!dateString) return null;
+    logger.debug(`Attempting to parse date string: "${dateString}"`);
 
     const match = dateString.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
     if (match) {
@@ -23,26 +38,27 @@ function parseDateString(dateString) {
             if (year > 1970 && month >= 0 && month < 12 && day >= 1 && day <= 31 && hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
                 const dateObject = new Date(Date.UTC(year, month, day, hour, minute));
                 if (!isNaN(dateObject.getTime())) {
+                    logger.debug("Successfully parsed date with regex:", dateObject);
                     return dateObject;
                 }
             }
         } catch (e) {
-            console.error(`Background: Error parsing matched date parts "${dateString}":`, e);
+            logger.error(`Error parsing matched date parts "${dateString}":`, e);
         }
     }
 
     const parsedFallback = Date.parse(dateString);
     if (!isNaN(parsedFallback)) {
-        console.warn(`Background: Used Date.parse fallback for "${dateString}"`);
+        logger.warn(`Used Date.parse fallback for "${dateString}"`);
         return new Date(parsedFallback);
     }
 
-    console.warn(`Background: Could not parse date format "${dateString}"`);
+    logger.warn(`Could not parse date format "${dateString}"`);
     return null;
 }
 
 async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
-    console.log(`Background: Starting CONCURRENT tab automation for ${itemsToFetch.length} ${itemType}(s) from sender tab ${senderTabId}.`);
+    logger.info(`Starting CONCURRENT tab automation for ${itemsToFetch.length} ${itemType}(s) from sender tab ${senderTabId}.`);
     const resultsMap = {};
     const scraperScript = itemType === 'Note' ? 'note_scraper.js' : 'email_scraper.js';
 
@@ -64,10 +80,10 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
                     action: "logUrlProcessing",
                     itemType: itemType,
                     index: currentIndex, total: itemsToFetch.length
-                }).catch(err => console.warn(`Could not send log to tab ${senderTabId}: ${err.message}`));
+                }).catch(err => logger.warn(`Could not send log to tab ${senderTabId}: ${err.message}`));
             }
 
-            console.log(`Background: Processing ${itemType} ${currentIndex}/${itemsToFetch.length}: ${itemUrl}`);
+            logger.info(`Processing ${itemType} ${currentIndex}/${itemsToFetch.length}: ${itemUrl}`);
             tempTab = await chrome.tabs.create({ url: itemUrl, active: false });
             const tempTabId = tempTab.id;
             if (!tempTabId) throw new Error("Failed to create temp tab.");
@@ -99,13 +115,13 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
                         chrome.runtime.onMessage.removeListener(listener);
                         resolve(message);
                     }
-                    // return true;
                     return true;
                 };
                 chrome.runtime.onMessage.addListener(listener);
             });
 
-            await chrome.scripting.executeScript({ target: { tabId: tempTabId }, files: [scraperScript] });
+            // IMPORTANT: Inject logger.js before the main scraper script
+            await chrome.scripting.executeScript({ target: { tabId: tempTabId }, files: ['logger.js', scraperScript] });
             const scrapeResult = await resultPromise;
             
             const parsedDate = parseDateString(itemInfo.dateStr);
@@ -134,20 +150,16 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
                 };
             }
             
-            // *** ADDED FOR DEBUGGING ***
-            console.log(`--- Fetched ${itemType} Data ---`);
-            console.log(JSON.stringify(unifiedResult, null, 2));
-            // ***************************
-
+            logger.debug(`--- Fetched ${itemType} Data ---`, unifiedResult);
             resultsMap[itemUrl] = unifiedResult;
 
         } catch (error) {
-            console.error(`Background: Error processing ${itemType} ${itemUrl} in tab ${tempTab?.id}:`, error);
+            logger.error(`Error processing ${itemType} ${itemUrl} in tab ${tempTab?.id}:`, error);
             resultsMap[itemUrl] = { type: itemType, title: `[Error processing item]`, author: 'System', content: error.message, dateObject: parseDateString(itemInfo.dateStr) || new Date(), url: itemUrl };
         } finally {
             if (tempTab?.id) {
                 try { await chrome.tabs.remove(tempTab.id); }
-                catch (e) { console.warn(`Background: Error closing temp tab ${tempTab.id}:`, e.message); }
+                catch (e) { logger.warn(`Error closing temp tab ${tempTab.id}:`, e.message); }
             }
         }
     };
@@ -163,7 +175,7 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
     }
     await Promise.all(runners);
 
-    console.log(`Background: Finished processing all ${itemsToFetch.length} ${itemType}(s) via tabs.`);
+    logger.info(`Finished processing all ${itemsToFetch.length} ${itemType}(s) via tabs.`);
     return resultsMap;
 }
 
@@ -174,12 +186,16 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
  */
 function logToTab(tabId, message) {
     if (tabId) {
+        // This now just logs to the background console. The tab will get its own logs.
+        logger.info(`[Tab ${tabId}] ${message}`);
         chrome.tabs.sendMessage(tabId, { action: "log", message: message })
-            .catch(err => console.warn(`Background: Could not log to tab ${tabId}: ${err.message}. It might have been closed or lacked the content script.`));
+            .catch(err => logger.warn(`Could not log to tab ${tabId}: ${err.message}. It might have been closed or lacked the content script.`));
     }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    logger.debug("Background received message:", message);
+
     if (message.action === "initiateGenerateFullCaseView") {
         if (sender.tab?.id) { chrome.tabs.sendMessage(sender.tab.id, { action: "generateFullView" }); }
         return false;
@@ -193,6 +209,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "fetchItemDetails" && message.items) {
         if (message.items.length === 0) {
+            logger.info("fetchItemDetails called with 0 items. Responding immediately.");
             sendResponse({ status: "success", details: {} });
             return false;
         }
@@ -202,31 +219,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ status: "success", details: resultsMap });
             })
             .catch(error => {
+                logger.error("fetchAllDetailsViaTabs failed:", error);
                 sendResponse({ status: "error", message: error.message });
             });
         return true;
     }
 
     if (message.action === "findAndOpenCase" && message.caseNumber) {
-        console.log(`Background: Received findAndOpenCase for case number: ${message.caseNumber}`);
+        logger.info(`Received findAndOpenCase for case number: ${message.caseNumber}`);
         logToTab(sender.tab?.id, `Received request to find Case ${message.caseNumber}.`);
         const senderTabId = sender.tab?.id; // Get the original tab ID
         const caseNumber = message.caseNumber;
         const reportUrl = `https://myatos.lightning.force.com/lightning/r/Report/00ObD0000026ectUAA/view?fv0=${caseNumber}`;
+        let closeReportTabOnSuccess = false;
         let tempTab = null;
 
-        // This is an async IIFE (Immediately Invoked Function Expression)
         (async () => {
             try {
                 logToTab(senderTabId, `Opening report in a temporary tab...`);
-                // Create the tab and make it active to force a full render.
                 tempTab = await chrome.tabs.create({ url: reportUrl, active: true });
                 
-                // IMPORTANT: Immediately switch focus back to the original tab.
                 if (senderTabId) {
                     logToTab(senderTabId, `Switching focus back to this tab.`);
                     await chrome.tabs.update(senderTabId, { active: true });
-                    console.log(`Background: Switched focus back to original tab ID: ${senderTabId}`);
+                    logger.debug(`Switched focus back to original tab ID: ${senderTabId}`);
                 }
 
                 const tempTabId = tempTab.id;
@@ -237,15 +253,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const timeout = setTimeout(() => {
                         chrome.tabs.onUpdated.removeListener(listener);
                         reject(new Error(`Timeout (30s) waiting for tab ${tempTabId} to load.`));
-                    }, 30000); // Increased to 30 seconds
+                    }, 30000);
 
                     const listener = (tabId, changeInfo, tab) => {
                         if (tabId === tempTabId && tab.status === 'complete') {
-                            // We wait for the tab to be 'complete' before injecting the script.
                             if (tab.url?.includes('Report')) {
                                 clearTimeout(timeout);
                                 chrome.tabs.onUpdated.removeListener(listener);
-                                console.log(`Background: Tab ${tempTabId} loaded successfully.`);
+                                logger.info(`Tab ${tempTabId} loaded successfully.`);
                                 resolve();
                             }
                         }
@@ -253,20 +268,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     chrome.tabs.onUpdated.addListener(listener);
                 });
 
-                // Set up a listener for the result from the content script
                 const resultPromise = new Promise((resolve, reject) => {
                      const messageListener = (msg, sender) => {
                         if (sender.tab?.id === tempTabId && (msg.type === 'caseIdFound' || msg.type === 'caseIdNotFound')) {
                             chrome.runtime.onMessage.removeListener(messageListener);
                             resolve(msg);
                         }
-                        return true; // Keep listener active for other messages
+                        return true;
                     };
                     chrome.runtime.onMessage.addListener(messageListener);
                 });
 
                 logToTab(senderTabId, `Injecting finder script into report tab...`);
-                await chrome.scripting.executeScript({ target: { tabId: tempTabId }, files: ['case_finder.js'] });
+                // IMPORTANT: Inject logger.js before the main finder script
+                await chrome.scripting.executeScript({ target: { tabId: tempTabId }, files: ['logger.js', 'case_finder.js'] });
 
                 logToTab(senderTabId, `Waiting for finder script to report back...`);
                 const result = await resultPromise;
@@ -276,39 +291,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const finalCaseUrl = `https://myatos.lightning.force.com/lightning/r/Case/${result.caseId}/view`;
                     logToTab(senderTabId, `Opening final Case page...`);
                     await chrome.tabs.create({ url: finalCaseUrl, active: true });
+                    closeReportTabOnSuccess = true; // Set flag to close the temp tab
                 } else {
                     logToTab(senderTabId, `Error: Failed to find Case ID. Reason: ${result.reason}.`);
-                    console.error(`Background: Failed to find Case ID. Reason: ${result.reason}. The report tab will remain open for debugging.`);
-                    // Make the tab active so the user can see the error
+                    logger.error(`Failed to find Case ID. Reason: ${result.reason}. The report tab will remain open for debugging.`);
                     await chrome.tabs.update(tempTabId, { active: true });
-                    // Do NOT close the tab automatically if it fails, so the user can see why.
-                    return; // Stop execution
+                    return;
                 }
 
             } catch (error) {
-                console.error("Background: Error in findAndOpenCase flow:", error);
+                logger.error("Error in findAndOpenCase flow:", error);
                 logToTab(senderTabId, `A critical error occurred: ${error.message}`);
                 if (tempTab?.id) {
-                    // If something went wrong, show the tab to the user
                     await chrome.tabs.update(tempTab.id, { active: true });
                 }
             } finally {
-                // Close the temp tab only on success
-                 if (tempTab?.id && !tempTab.active) {
+                 if (tempTab?.id && closeReportTabOnSuccess) {
                     try {
                         await chrome.tabs.remove(tempTab.id);
-                        console.log(`Background: Successfully closed temporary tab ${tempTab.id}`);
+                        logger.info(`Successfully closed temporary tab ${tempTab.id}`);
                     } catch (e) {
-                        console.warn(`Background: Could not close temp tab ${tempTab.id}: ${e.message}`);
+                        logger.warn(`Could not close temp tab ${tempTab.id}: ${e.message}`);
                     }
                 }
             }
         })();
-        // We don't use sendResponse here as the actions (opening tabs) are the response.
-        return true; // Indicates an async response
+        return true;
     }
     return false;
 });
 
-console.log("Background: Service worker listeners attached and ready.");
+logger.info("Background: Service worker listeners attached and ready.");
 // End of file

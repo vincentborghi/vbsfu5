@@ -1,34 +1,33 @@
-/* styles.css - Styles for the VB Salesforce Utilities panel */
+/* styles.css - Styles for the PSMH panel */
 
 :root {
-    --vbsfu-panel-bg: #fdfdff;
-    --vbsfu-border-color: #d1d1e0;
-    --vbsfu-shadow-color: rgba(0, 0, 0, 0.15);
-    --vbsfu-title-color: #005a9e; /* Title remains blue for contrast */
-    --vbsfu-button-bg: #fff9e0; /* Light yellow */
-    --vbsfu-button-hover-bg: #fff3c4; /* Darker yellow */
-    --vbsfu-button-text: #5e4d03; /* Dark brown/gold for text */
-    --vbsfu-button-border: #fce8a9; /* Yellow border */
-    --vbsfu-status-success: #006421;
-    --vbsfu-status-error: #c70000;
-    --vbsfu-status-warn: #b55f00;
-    --vbsfu-modal-bg: #ffffff;
-    --vbsfu-modal-overlay: rgba(0, 0, 0, 0.4);
+    --psmh-panel-bg: #fdfdff;
+    --psmh-border-color: #d1d1e0;
+    --psmh-shadow-color: rgba(0, 0, 0, 0.15);
+    --psmh-title-color: #005a9e; /* Title remains blue for contrast */
+    --psmh-button-bg: #fff9e0; /* Light yellow */
+    --psmh-button-hover-bg: #fff3c4; /* Darker yellow */
+    --psmh-button-text: #5e4d03; /* Dark brown/gold for text */
+    --psmh-button-border: #fce8a9; /* Yellow border */
+    --psmh-status-success: #006421;
+    --psmh-status-error: #c70000;
+    --psmh-status-warn: #b55f00;
+    --psmh-modal-bg: #ffffff;
+    --psmh-modal-overlay: rgba(0, 0, 0, 0.4);
 }
 
-#vbsfu-panel {
+#psmh-panel {
     position: fixed;
     top: 100px;
-    right: 0; /* Keep it anchored to the right */
-    transform: translateX(calc(100% + 2px)); /* Start hidden off-screen */
+    right: -230px; /* Hidden off-screen by default (width is 220px) */
     width: 220px;
     z-index: 2147483646; /* One less than the modal overlay */
-    background-color: var(--vbsfu-panel-bg);
-    border: 1px solid var(--vbsfu-border-color);
+    background-color: var(--psmh-panel-bg);
+    border: 1px solid var(--psmh-border-color);
     border-right: none;
     border-radius: 8px 0 0 8px;
-    box-shadow: -3px 4px 12px var(--vbsfu-shadow-color);
-    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); /* Transition the transform property */
+    box-shadow: -3px 4px 12px var(--psmh-shadow-color);
+    transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
     display: flex;
@@ -37,31 +36,42 @@
     /* padding-bottom: 8px; */ /* Removed for compactness */
 }
 
-#vbsfu-panel.vbsfu-visible {
-    transform: translateX(0); /* Bring it on-screen */
-}
-
-#vbsfu-header {
+#psmh-header {
     cursor: grab;
-    background-color: var(--vbsfu-button-hover-bg); /* Use darker yellow for header */
-    padding: 6px 12px; /* original: 8px 12px; */
-    text-align: center;
-    border-bottom: 1px solid var(--vbsfu-border-color);
+    background-color: var(--psmh-button-hover-bg);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center; /* This will keep the title centered */
+    position: relative; /* Add for positioning context for the handle */
+    border-bottom: 1px solid var(--psmh-border-color);
     border-radius: 8px 0 0 0;
 }
 
-#vbsfu-header:active {
+#psmh-header:active {
     cursor: grabbing;
 }
 
-#vbsfu-panel h4 {
+.psmh-drag-handle {
+    position: absolute; /* Position it relative to the header */
+    left: 12px; /* Add some left margin */
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--psmh-button-text);
+    opacity: 0.6;
+    font-size: 18px;
+    line-height: 1;
+    user-select: none;
+}
+
+#psmh-panel h4 {
     margin: 0;
-    color: var(--vbsfu-title-color);
+    color: var(--psmh-title-color);
     font-weight: 600;
     user-select: none;
 }
 
-#vbsfu-content {
+#psmh-content {
     padding: 6px 12px; /* original: 12px; */
     display: flex;
     flex-direction: column;
@@ -69,57 +79,63 @@
 }
 
 /* New container for the case opener */
-#vbsfu-case-opener-container {
+#psmh-case-opener-container {
     display: flex;
     gap: 6px;
     margin-bottom: 6px; /* Add some space below */
 }
 
 /* Style for the new input field */
-#vbsfu-case-input {
+#psmh-case-input {
     flex-grow: 1; /* Take up available space */
     padding: 6px 8px;
-    border: 1px solid var(--vbsfu-border-color);
+    border: 1px solid var(--psmh-border-color);
     border-radius: 4px;
     font-size: 14px;
     min-width: 0; /* Important for flexbox shrinking */
 }
 
-.vbsfu-button {
+.psmh-button {
     padding: 6px 12px; /* original: 10px 12px; */
     cursor: pointer;
-    border: 1px solid var(--vbsfu-button-border);
-    background-color: var(--vbsfu-button-bg);
-    color: var(--vbsfu-button-text);
+    border: 1px solid var(--psmh-button-border);
+    background-color: var(--psmh-button-bg);
+    color: var(--psmh-button-text);
     border-radius: 6px;
     font-size: 14px; /* original: 14px; */
     font-weight: bold; /* Make button text bold */
     text-align: center;
     transition: background-color 0.2s, box-shadow 0.2s;
 }
+.psmh-button.psmh-button-small {
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: normal;
+    margin-top: 4px;
+}
 
-.vbsfu-button:hover, #vbsfu-toggle:hover {
-    background-color: var(--vbsfu-button-hover-bg);
+.psmh-button:hover, #psmh-toggle:hover {
+    background-color: var(--psmh-button-hover-bg);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.vbsfu-button:disabled {
+.psmh-button:disabled {
     cursor: not-allowed;
     background-color: #f0f0f0;
     color: #999;
     border-color: #ddd;
 }
 
-#vbsfu-toggle {
+#psmh-toggle {
     position: fixed;
     top: 100px;
     right: 15px;
     z-index: 2147483646;
     padding: 10px;
     cursor: pointer;
-    border: 1px solid var(--vbsfu-button-border);
-    background-color: var(--vbsfu-button-bg);
-    color: var(--vbsfu-button-text);
+    border: 1px solid var(--psmh-button-border);
+    background-color: var(--psmh-button-bg);
+    color: var(--psmh-button-text);
     border-radius: 50%;
     font-size: 20px;
     line-height: 1;
@@ -128,11 +144,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px var(--vbsfu-shadow-color);
+    box-shadow: 0 2px 8px var(--psmh-shadow-color);
     transition: background-color 0.2s, box-shadow 0.2s;
 }
 
-#vbsfu-status {
+#psmh-status {
     font-size: 13px; /* original: 14px; */
     font-weight: 600; /* Updated weight */
     margin-top: 4px; /* original: 8px; */
@@ -142,13 +158,14 @@
 }
 
 /* --- Modal Styles --- */
-#vbsfu-modal-overlay {
+#psmh-modal-overlay-about,
+#psmh-modal-overlay-help {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: var(--vbsfu-modal-overlay);
+    background-color: var(--psmh-modal-overlay);
     z-index: 2147483647; /* Highest z-index */
     display: flex;
     justify-content: center;
@@ -158,14 +175,16 @@
     transition: opacity 0.3s, visibility 0s 0.3s;
 }
 
-#vbsfu-modal-overlay.vbsfu-visible {
+#psmh-modal-overlay-about.psmh-visible,
+#psmh-modal-overlay-help.psmh-visible {
     opacity: 1;
     visibility: visible;
     transition: opacity 0.3s;
 }
 
-#vbsfu-modal-content {
-    background-color: var(--vbsfu-modal-bg);
+#psmh-modal-content-about,
+#psmh-modal-content-help {
+    background-color: var(--psmh-modal-bg);
     padding: 25px 30px;
     border-radius: 8px;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
@@ -176,24 +195,30 @@
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-#vbsfu-modal-overlay.vbsfu-visible #vbsfu-modal-content {
+#psmh-modal-overlay-about.psmh-visible #psmh-modal-content-about,
+#psmh-modal-overlay-help.psmh-visible #psmh-modal-content-help {
     transform: scale(1);
 }
 
-#vbsfu-modal-content h5 {
+#psmh-modal-content-about h5,
+#psmh-modal-content-help h5 {
     margin-top: 0;
     margin-bottom: 10px;
-    color: var(--vbsfu-title-color);
+    color: var(--psmh-title-color);
     font-size: 1.3em;
 }
 
-#vbsfu-modal-body {
+#psmh-modal-body-about,
+#psmh-modal-body-help {
     margin-bottom: 20px;
     font-size: 0.95em;
     line-height: 1.5;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
-#vbsfu-modal-close {
+#psmh-modal-close-about,
+#psmh-modal-close-help {
     position: absolute;
     top: 10px;
     right: 15px;
@@ -204,7 +229,109 @@
     color: #888;
     padding: 5px;
 }
-#vbsfu-modal-close:hover {
+#psmh-modal-close-about:hover,
+#psmh-modal-close-help:hover {
     color: #333;
 }
-// End of file
+
+/* --- Collapsible Section Styles --- */
+#psmh-panel details {
+    border: 1px solid var(--psmh-border-color);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background-color: #fff;
+}
+
+#psmh-panel summary {
+    padding: 6px 10px 6px 24px; /* Add padding for the icon */
+    font-weight: 600;
+    cursor: pointer;
+    background-color: var(--psmh-button-hover-bg);
+    border-radius: 5px;
+    outline: none;
+    color: var(--psmh-title-color);
+    position: relative; /* Needed for icon positioning */
+    list-style: none; /* Remove default disclosure icon */
+}
+
+/* Hide the default arrow on WebKit browsers */
+#psmh-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+#psmh-panel summary::before {
+    content: '▶';
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    transition: transform 0.2s ease-in-out;
+    font-size: 0.8em;
+    color: var(--psmh-title-color);
+}
+
+#psmh-panel details[open] > summary {
+    border-bottom: 1px solid var(--psmh-border-color);
+    border-radius: 5px 5px 0 0; /* Adjust radius when open */
+}
+
+#psmh-panel details .psmh-section-content {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#psmh-panel details[open] > summary::before {
+    transform: translateY(-50%) rotate(90deg);
+}
+
+/* --- FUDFE Tool Styles --- */
+#psmh-fudfe-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--psmh-border-color);
+}
+
+#psmh-fudfe-input {
+    width: 100%;
+    box-sizing: border-box; /* Include padding and border in the element's total width */
+    padding: 6px 8px;
+    border: 1px solid var(--psmh-border-color);
+    border-radius: 4px;
+}
+
+.psmh-fudfe-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: space-between;
+}
+
+/* --- Custom Info Display Styles --- */
+.psmh-info-pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px; /* Space between label and value */
+}
+
+.psmh-info-separator {
+    margin: 0 4px; /* Space around the separator */
+    color: var(--psmh-button-text);
+    font-weight: 400; /* Normal weight for separator */
+}
+
+.psmh-info-label {
+    font-weight: 400; /* Lighter font weight */
+    color: #6a5a23;   /* Muted version of button text */
+    user-select: none;
+}
+
+.psmh-info-value {
+    font-weight: 700; /* Bolder font weight */
+    color: var(--psmh-button-text);
+}
+
+/* End of file */

@@ -1,16 +1,19 @@
 {
   "manifest_version": 3,
   "name": "PSM Helper",
-  "version": "2.5",
-  "description": "Provides several functions to circumvent some PSM Salesforce annoyances.",
+  "version": "0.1",
+  "description": "Provides several functions to help users of PSM Salesforce. Experimental tool",
   "permissions": [
-    "scripting"
+    "scripting",
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "*://myatos.lightning.force.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "popup.html",
@@ -32,6 +35,7 @@
         "*://myatos--preprod.sandbox.lightning.force.com/lightning/*"
       ],
       "js": [
+        "logger.js",
         "content.js",
         "panel_injector.js"
       ],
