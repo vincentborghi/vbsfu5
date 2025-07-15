@@ -791,6 +791,40 @@ async function generateCaseViewHtml(generatedTime) {
     return htmlOutput;
 }
 
+/**
+ * Finds the close button of the currently active Salesforce tab and clicks it.
+ */
+async function closeActiveSalesforceTab() {
+    psmhLogger.debug("Attempting to close the active Salesforce tab.");
+    const activeTabLi = document.querySelector('li.slds-is-active[role="presentation"]');
+    if (!activeTabLi) {
+        psmhLogger.warn("Could not find the active tab list item to close.");
+        return;
+    }
+
+    const closeButton = activeTabLi.querySelector('button[title^="Close"]');
+    if (closeButton) {
+        psmhLogger.info("Found active tab close button. Clicking it.");
+        closeButton.click();
+    } else {
+        psmhLogger.warn("Could not find a close button within the active tab.");
+    }
+}
+
+// --- Keyboard Shortcut Listener ---
+document.addEventListener('keydown', (event) => {
+    // Check for Alt+C combination
+    if (event.altKey && event.key.toLowerCase() === 'c') {
+        // Check storage to see if the feature is enabled
+        chrome.storage.sync.get('closeOnAltC', (data) => {
+            if (data.closeOnAltC) {
+                psmhLogger.info("Alt+C shortcut detected and enabled. Closing tab.");
+                event.preventDefault(); // Prevent any default browser action for this combo
+                closeActiveSalesforceTab();
+            }
+        });
+    }
+});
 
 // --- Message Listener ---
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

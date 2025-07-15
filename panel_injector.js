@@ -513,31 +513,38 @@ function makePanelDraggable(panel, header, lastVisiblePosition) {
     header.onmousedown = dragMouseDown;
 
     function dragMouseDown(e) {
+        psmhLogger.debug('dragMouseDown: Mouse down on header.');
         e.preventDefault();
         
+        // Get the initial mouse cursor position
         initialMouseX = e.clientX;
         initialMouseY = e.clientY;
 
+        // Get the initial panel position
         initialPanelTop = panel.offsetTop;
         initialPanelRight = parseFloat(window.getComputedStyle(panel).right);
 
         document.onmouseup = closeDragElement;
         document.onmousemove = elementDrag;
+        psmhLogger.debug('Attaching mousemove and mouseup listeners.');
         header.style.cursor = 'grabbing';
     }
 
     function elementDrag(e) {
         e.preventDefault();
         
+        // Calculate the displacement of the mouse from its starting point
         const dx = e.clientX - initialMouseX;
         const dy = e.clientY - initialMouseY;
 
+        // Calculate the new panel position based on its initial position and the mouse displacement
         const newTop = initialPanelTop + dy;
+        // For 'right' property, moving mouse right (positive dx) should decrease the 'right' value.
         const newRight = initialPanelRight - dx;
 
         panel.style.top = newTop + "px";
         panel.style.right = newRight + "px";
-        panel.style.left = ''; // Ensure left is not set
+        panel.style.left = ''; // Ensure left is not set, to avoid conflicts
 
         // Move the toggle button along with the panel during the drag
         if (toggleButton) {
@@ -547,6 +554,8 @@ function makePanelDraggable(panel, header, lastVisiblePosition) {
     }
 
     function closeDragElement() {
+        psmhLogger.debug('closeDragElement: Mouse up. Removing listeners.');
+
         // Update the last known position for the toggle functionality
         lastVisiblePosition.top = panel.offsetTop;
         lastVisiblePosition.right = parseFloat(window.getComputedStyle(panel).right);
@@ -621,6 +630,13 @@ function injectUI() {
     });
     logLevelContainer.append(logLevelLabel, logLevelSelect);    
     devContent.append(debugButton, logLevelContainer);
+
+    const shortcutContainer = myCreateElement('div', {});
+    shortcutContainer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 6px;';
+    const shortcutLabel = myCreateElement('label', { htmlFor: 'psmh-close-shortcut-toggle', textContent: 'Close Tab (Alt+C):' });
+    const shortcutToggle = myCreateElement('input', { id: 'psmh-close-shortcut-toggle', type: 'checkbox' });
+    shortcutContainer.append(shortcutLabel, shortcutToggle);
+    devContent.append(shortcutContainer); // Add to developer tools
     devDetails.append(devSummary, devContent); // Group dev tools
 
     // Create a new row for About and Help buttons
@@ -760,6 +776,20 @@ function injectUI() {
         logLevelSelect.value = savedLevel;
         psmhLogger.debug(`UI: Set log level dropdown to saved value: ${savedLevel}`);
         // The actual logger level is set by the listener in logger.js
+    });
+    
+    // Listener for the new shortcut toggle
+    shortcutToggle.onchange = (e) => {
+        const isEnabled = e.target.checked;
+        psmhLogger.info(`UI: User set 'Close on Alt+C' to ${isEnabled}.`);
+        chrome.storage.sync.set({ closeOnAltC: isEnabled });
+    };
+
+    // Populate the shortcut toggle from storage
+    chrome.storage.sync.get('closeOnAltC', (data) => {
+        const isEnabled = !!data.closeOnAltC;
+        shortcutToggle.checked = isEnabled;
+        psmhLogger.debug(`UI: Set 'Close on Alt+C' toggle to saved value: ${isEnabled}`);
     });
     
     showInfoButton.onclick = () => {
