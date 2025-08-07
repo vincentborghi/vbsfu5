@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PSM Helper",
-  "version": "0.1",
+  "version": "0.2",
   "description": "Provides several functions to help users of PSM Salesforce. Experimental tool",
   "permissions": [
     "scripting",
@@ -9,7 +9,8 @@
     "storage"
   ],
   "host_permissions": [
-    "*://myatos.lightning.force.com/*"
+    "*://myatos.lightning.force.com/*",
+    "*://myatos--preprod.sandbox.lightning.force.com/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -35,13 +36,9 @@
         "*://myatos--preprod.sandbox.lightning.force.com/lightning/*"
       ],
       "js": [
-        "logger.js",
-        "content.js",
-        "panel_injector.js"
+        "logger.js"
       ],
-      "css": [
-        "styles.css"
-      ]
+      "css": []
     }
   ]
 }

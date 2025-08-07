@@ -6,10 +6,10 @@ logger.info("Note Scraper: Script Injected.");
  * Waits for an element matching the selector to appear in the DOM.
  * @param {string} selector - CSS selector
  * @param {Element} [baseElement=document] - Base element
- * @param {number} [timeout=10000] - Timeout in ms
+ * @param {number} [timeout=12000] - Timeout in ms
  * @returns {Promise<Element|null>}
  */
-function waitForElement(selector, baseElement = document, timeout = 10000) {
+function waitForElement(selector, baseElement = document, timeout = 12000) {
     logger.debug(`Note Scraper: Waiting for "${selector}"...`);
     return new Promise((resolve) => {
         const startTime = Date.now();
@@ -28,6 +28,23 @@ function waitForElement(selector, baseElement = document, timeout = 10000) {
     });
 }
 
+/**
+ * Finds and clicks the close button on the active Salesforce workspace tab.
+ */
+async function closeSalesforceTab() {
+    // This function operates on the top-level document where the tabs are.
+    const top_document = window.top.document;
+    const closeButtonSelector = 'li.oneConsoleTabItem.slds-is-active .close button';
+    logger.info("Attempting to find and close the active Salesforce tab...");
+    const closeButton = top_document.querySelector(closeButtonSelector);
+
+    if (closeButton) {
+        logger.info("Found active Salesforce tab close button. Clicking it to clean up.", closeButton);
+        closeButton.click();
+    } else {
+        logger.warn(`Could not find the active Salesforce tab close button with selector: "${closeButtonSelector}"`);
+    }
+}
 // Main scraping logic wrapped in an async function
 async function scrapeNoteDetails() {
     logger.info("Starting scrapeNoteDetails.");
@@ -43,7 +60,7 @@ async function scrapeNoteDetails() {
         const descLayoutItem = await waitForElement(descLayoutItemSelector);
         logger.debug(`Description layout item found?`, !!descLayoutItem);
         if (descLayoutItem) {
-            const descTextElement = await waitForElement('records-formatted-rich-text span[part="formatted-rich-text"]', descLayoutItem, 5000);
+            const descTextElement = await waitForElement('records-formatted-rich-text span[part="formatted-rich-text"]', descLayoutItem, 7000);
             logger.debug(`Description rich text span found?`, !!descTextElement);
             if (descTextElement) {
                 description = descTextElement.innerHTML?.trim(); // Get innerHTML for rich text
@@ -75,7 +92,7 @@ async function scrapeNoteDetails() {
         // --- Extract Title ---
         const titleLayoutItem = await waitForElement('records-record-layout-item[field-label="PSM Note Name"]');
         if (titleLayoutItem) {
-            const titleValueElement = await waitForElement('lightning-formatted-text', titleLayoutItem, 5000);
+            const titleValueElement = await waitForElement('lightning-formatted-text', titleLayoutItem, 7000);
             if (titleValueElement) {
                 title = titleValueElement.textContent?.trim();
                 logger.debug("Extracted Title from layout item:", title);
@@ -105,7 +122,7 @@ async function scrapeNoteDetails() {
 
         if (createdByItem) {
             const dateElementSelector = 'records-modstamp lightning-formatted-text';
-            const dateElement = await waitForElement(dateElementSelector, createdByItem, 5000);
+            const dateElement = await waitForElement(dateElementSelector, createdByItem, 7000);
             logger.debug(`Date element found?`, !!dateElement);
             if (dateElement) {
                 createdDateText = dateElement.textContent?.trim();
@@ -132,8 +149,12 @@ async function scrapeNoteDetails() {
     };
     logger.info("Sending results back to background script:", result);
     chrome.runtime.sendMessage(result);
+
+    // After sending the data, try to close the Salesforce pseudo-tab
+    await closeSalesforceTab();
 }
 
 // Execute the scraping
 scrapeNoteDetails();
+
 // End of file

@@ -1,5 +1,5 @@
 // panel_injector.js - Injects the UI, makes it draggable, and handles events.
-// The logger is accessed via the global psmhLogger object defined in logger.js
+// The logger is now accessed via the global psmhLogger object defined in logger.js
 
 psmhLogger.info("UI Panel Injector Loaded.");
 
@@ -39,7 +39,28 @@ function updateStatus(message, type = 'info') {
     const statusDiv = document.getElementById('psmh-status');
     if (!statusDiv) return;
 
-    statusDiv.textContent = message;
+    // Clear previous content
+    statusDiv.innerHTML = '';
+
+    if (!message) {
+        statusDiv.style.color = 'var(--psmh-button-text)';
+        return;
+    }
+
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = message;
+    statusDiv.appendChild(msgSpan);
+
+    const clearBtn = document.createElement('span');
+    clearBtn.className = 'psmh-status-clear-btn';
+    clearBtn.innerHTML = '&times;';
+    clearBtn.title = 'Clear message';
+    clearBtn.onclick = () => {
+        statusDiv.innerHTML = '';
+        statusDiv.style.color = 'var(--psmh-button-text)';
+    };
+    statusDiv.appendChild(clearBtn);
+
     switch (type) {
         case 'success':
             statusDiv.style.color = 'var(--psmh-status-success)';
@@ -354,8 +375,13 @@ async function autofillCommunity() {
  * Finds the "From" address dropdown in a Salesforce "New Email" form and selects a specific address.
  */
 async function autofillFromAddress() {
-    psmhLogger.info('"Autofill From Address" button clicked.');    
+    psmhLogger.info('"Autofill From Address" button clicked.');
     updateStatus('Searching for "From" dropdown...', 'warn');
+
+    // Get the configured email address from storage
+    const data = await chrome.storage.sync.get('preferredFromAddress');
+    const desiredEmail = data.preferredFromAddress || 'PSM-Support-Email <psm-support-email@atos.net>';
+    psmhLogger.debug(`Using preferred "From" address from settings: "${desiredEmail}"`);
 
     // Step 1: Find the "From" label span.
     psmhLogger.debug('Searching for label span with text "From".');
@@ -396,7 +422,6 @@ async function autofillFromAddress() {
     dropdownTrigger.click();
 
     // Step 3: Wait for the desired option to appear and click it. In Aura, this is typically a `li.uiMenuItem a`.
-    const desiredEmail = 'PSM-Support-Email <psm-support-email@atos.net>';
     const optionSelector = `li.uiMenuItem a[title="${desiredEmail}"]`;
     
     psmhLogger.debug(`Waiting for option with selector: "${optionSelector}"`);
@@ -430,17 +455,61 @@ async function autofillFromAddress() {
 }
 
 /**
+ * Gets an email from the FUDFE input, falling back to the clipboard if the input is empty.
+ * Updates the status panel and the input field accordingly.
+ * @returns {Promise<string|null>} A valid email address or null.
+ */
+async function getEmailFromInputOrClipboard() {
+    psmhLogger.debug("getEmailFromInputOrClipboard: Starting.");
+    const emailInput = document.getElementById('psmh-fudfe-input');
+    let email = emailInput.value.trim();
+
+    if (email) {
+        psmhLogger.debug(`getEmailFromInputOrClipboard: Found email in input field: "${email}"`);
+        return email;
+    }
+
+    psmhLogger.info("getEmailFromInputOrClipboard: Input is empty, trying to read from clipboard.");
+    updateStatus('Input empty, checking clipboard...', 'info');
+    
+    try {
+        const clipboardText = await navigator.clipboard.readText();
+        const trimmedText = clipboardText.trim();
+        psmhLogger.debug(`getEmailFromInputOrClipboard: Read from clipboard (trimmed): "${trimmedText}"`);
+
+        // Stricter, anchored email validation regex to ensure the whole string is an email
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+        if (emailRegex.test(trimmedText)) {
+            email = trimmedText;
+            psmhLogger.info(`getEmailFromInputOrClipboard: Found valid email in clipboard: "${email}"`);
+            updateStatus('Using email from clipboard.', 'success');
+            emailInput.value = email;
+            // Trigger input event to show clear button
+            emailInput.dispatchEvent(new Event('input', { bubbles: true })); 
+            return email;
+        } else {
+            psmhLogger.warn(`getEmailFromInputOrClipboard: Clipboard content is not a valid email: "${clipboardText}"`);
+            updateStatus('Clipboard has no valid email.', 'error');
+            return null;
+        }
+    } catch (err) {
+        psmhLogger.error("getEmailFromInputOrClipboard: Could not read from clipboard.", err);
+        updateStatus('Failed to read clipboard.', 'error');
+        return null;
+    }
+}
+
+/**
  * Opens a Salesforce report to look up the last login time for a given email.
  */
 async function lookupLastLoginFromEmail() {
     psmhLogger.info("FUDFE: 'Lookup Last Login' button clicked.");
-    updateStatus('Looking up last login...', 'warn');
+    updateStatus('Getting email...', 'info');
 
-    const emailInput = document.getElementById('psmh-fudfe-input');
-    const email = emailInput.value.trim();
-
-    if (!email.includes('@')) {
-        updateStatus('Error: Invalid email address.', 'error');
+    const email = await getEmailFromInputOrClipboard();
+    if (!email) {
+        psmhLogger.warn("lookupLastLoginFromEmail: No valid email found. Aborting.");
         return;
     }
 
@@ -448,7 +517,7 @@ async function lookupLastLoginFromEmail() {
     const reportUrl = `${window.location.origin}/lightning/r/Report/00ObD0000027JRNUA2/view?fv0=${encodedEmail}`;
 
     window.open(reportUrl, '_blank');
-    updateStatus('Last login report opened.', 'success');
+    updateStatus('Last login report opened.', 'info');
 }
 
 /**
@@ -456,17 +525,27 @@ async function lookupLastLoginFromEmail() {
  */
 async function fillUserDataFromEmail() {
     psmhLogger.info("FUDFE: 'Fill User Data From Email' button clicked.");
-    updateStatus('Processing email...', 'warn');
 
-    const emailInput = document.getElementById('psmh-fudfe-input');
-    const email = emailInput.value.trim().toLowerCase();
-
-    if (!email.includes('@') || !email.includes('.')) {
-        updateStatus('Error: Invalid email format.', 'error');
+    /* Do not suppress this comment, NB: the if does not do the trick apparently
+    if (!window.location.href.includes('/lightning/r/Contact/')) {
+        const errorMsg = "Operation not available here: the current view is not a Contact.";
+        psmhLogger.warn(`fillUserDataFromEmail: Aborting. ${errorMsg}`);
+        updateStatus(errorMsg, 'error');
         return;
     }
+        */ 
 
-    const namePart = email.split('@')[0];
+    updateStatus('Getting email...', 'info');
+
+    const email = await getEmailFromInputOrClipboard();
+    if (!email) {
+        psmhLogger.warn("fillUserDataFromEmail: No valid email found. Aborting.");
+        return;
+    }
+    psmhLogger.debug(`fillUserDataFromEmail: Proceeding with email: "${email}"`);
+
+    const lowerCaseEmail = email.toLowerCase();
+    const namePart = lowerCaseEmail.split('@')[0];
     const nameParts = namePart.split('.');
 
     // Helper to capitalize names, including hyphenated ones
@@ -488,13 +567,13 @@ async function fillUserDataFromEmail() {
         lastName = capitalize(nameParts[1]);
     }
 
-    psmhLogger.debug(`Parsed email. First: ${firstName}, Last: ${lastName}, Email: ${email}`);
+    psmhLogger.debug(`Parsed email. First: ${firstName}, Last: ${lastName}, Email: ${lowerCaseEmail}`);
 
     // Populate the form fields
     const successTitle = await setPicklistValue('button[name="salutation"]', 'Mr.', 'Title');
     const successFirstName = await setInputValue('input[name="firstName"]', firstName, 'First Name');
     const successLastName = await setInputValue('input[name="lastName"]', lastName, 'Last Name');
-    const successEmail = await setInputValue('input[name="Email"]', email, 'Email');
+    const successEmail = await setInputValue('input[name="Email"]', lowerCaseEmail, 'Email');
 
     if (successTitle && successFirstName && successLastName && successEmail) {
         updateStatus('User data filled successfully!', 'success');
@@ -589,6 +668,7 @@ function injectUI() {
     const openCaseButton = myCreateElement('button', { id: 'psmh-open-case', textContent: 'View', className: 'psmh-button' });
     caseOpenerContainer.append(caseInput, openCaseButton);
 
+    const autofillButton = myCreateElement('button', { id: 'psmh-autofill-from', textContent: 'Fill "From" Field', className: 'psmh-button' });
     const showInfoButton = myCreateElement('button', { id: 'psmh-show-info', textContent: 'Show Key Info', className: 'psmh-button' });
     const generateButton = myCreateElement('button', { id: 'psmh-generate', textContent: 'Generate Full View', className: 'psmh-button' });
     const copyButton = myCreateElement('button', { id: 'psmh-copy', textContent: 'Copy Case Link', className: 'psmh-button' });
@@ -597,20 +677,38 @@ function injectUI() {
     // --- Create Collapsible Sections ---
     const autofillDetails = myCreateElement('details', {});
     const autofillSummary = myCreateElement('summary', { textContent: 'Admin Tools' });
-    const autofillContent = myCreateElement('div', { className: 'psmh-section-content' });
-    const autofillButton = myCreateElement('button', { id: 'psmh-autofill-from', textContent: 'Fill "From" Field', className: 'psmh-button' });
+    const autofillContent = myCreateElement('div', { className: 'psmh-section-content' });    
     const autofillCommButton = myCreateElement('button', { id: 'psmh-autofill-comm', textContent: 'Fill Community Info', className: 'psmh-button' });
     
     // Create new FUDFE elements
     const fudfeContainer = myCreateElement('div', { id: 'psmh-fudfe-container' });
     const fudfeActionsContainer = myCreateElement('div', { className: 'psmh-fudfe-actions' });
-    const fudfeInput = myCreateElement('input', { id: 'psmh-fudfe-input', /* type: 'email', */ placeholder: 'user@example.com' });
+    // keep the string e\u200Bmail as it is to prevent LastPass from interfering
+    const fudfeInput = myCreateElement('input', { id: 'psmh-fudfe-input',  type: 'text', placeholder: 'Enter e\u200Bma\u200Bil or use clipboard' });
+    fudfeInput.setAttribute('data-lpignore', 'true');
     const lookupLoginButton = myCreateElement('button', { id: 'psmh-lookup-login-btn', textContent: 'Lookup Last Login From Email', className: 'psmh-button psmh-button-small' });
     const fudfeButton = myCreateElement('button', { id: 'psmh-fudfe-button', textContent: 'Fill Contact Data From Email', className: 'psmh-button psmh-button-small' });
-    fudfeActionsContainer.append(lookupLoginButton, fudfeButton);
-    fudfeContainer.append(fudfeInput, fudfeActionsContainer);
 
-    autofillContent.append(autofillButton, autofillCommButton, fudfeContainer); // Group autofill buttons
+    // --- Create a wrapper for the input and its new clear button ---
+    const fudfeInputWrapper = myCreateElement('div', {});
+    fudfeInputWrapper.style.cssText = 'position: relative; display: flex; align-items: center; width: 100%;';
+
+    const fudfeClearButton = myCreateElement('span', { innerHTML: '&times;', title: 'Clear email' });
+    fudfeClearButton.style.cssText = 'position: absolute; right: 8px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px; color: #999; display: none;';
+
+    // Adjust input style to make space for the clear button
+    fudfeInput.style.width = '100%';
+    fudfeInput.style.boxSizing = 'border-box'; // Ensure padding is included in the width
+    fudfeInput.style.paddingRight = '25px';
+
+    // Append the input and clear button to their wrapper
+    fudfeInputWrapper.append(fudfeInput, fudfeClearButton);
+
+    // Assemble the FUDFE container
+    fudfeActionsContainer.append(lookupLoginButton, fudfeButton);
+    fudfeContainer.append(fudfeInputWrapper, fudfeActionsContainer);
+
+    autofillContent.append(autofillCommButton, fudfeContainer); // Group autofill buttons
     autofillDetails.append(autofillSummary, autofillContent);
 
     const devDetails = myCreateElement('details', { id: 'psmh-dev-tools-details' });
@@ -632,27 +730,32 @@ function injectUI() {
     logLevelContainer.append(logLevelLabel, logLevelSelect);    
     devContent.append(debugButton, logLevelContainer);
 
+    // This setting is being moved to the new Preferences modal
     const shortcutContainer = myCreateElement('div', {});
     shortcutContainer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 6px;';
     const shortcutLabel = myCreateElement('label', { htmlFor: 'psmh-close-shortcut-toggle', textContent: 'Enable Alt+C  (Close Tab):' });
     const shortcutToggle = myCreateElement('input', { id: 'psmh-close-shortcut-toggle', type: 'checkbox' });
     shortcutContainer.append(shortcutLabel, shortcutToggle);
-    devContent.append(shortcutContainer); // Add to developer tools
     devDetails.append(devSummary, devContent); // Group dev tools
 
     // Create a new row for About and Help buttons
-    const aboutHelpRow = myCreateElement('div', {});
+    const aboutHelpRow = myCreateElement('div', { className: 'psmh-button-group-left' });
     aboutHelpRow.style.cssText = 'display: flex; gap: 6px;';
     const newAboutButton = myCreateElement('button', { id: 'psmh-about-btn', textContent: 'About', className: 'psmh-button' });
     newAboutButton.style.flex = '1';
-    const helpButton = myCreateElement('button', { id: 'psmh-help-btn', textContent: 'Help', className: 'psmh-button' });
-    helpButton.style.flex = '1';
-    aboutHelpRow.append(newAboutButton, helpButton);
+    const helpButton = myCreateElement('button', { id: 'psmh-help-btn', textContent: 'Help', className: 'psmh-button psmh-button-small-text' });
+    const prefsButton = myCreateElement('button', { id: 'psmh-prefs-btn', className: 'psmh-button', innerHTML: '⚙️', title: 'Preferences' });
+
+    const leftButtons = myCreateElement('div', { className: 'psmh-button-group-left' });
+    leftButtons.append(newAboutButton, helpButton);
+
+    aboutHelpRow.append(leftButtons, prefsButton);
     
     // New button order
     content.appendChild(caseOpenerContainer);
     content.appendChild(copyButton); // Moved up
     content.appendChild(updateByEmailButton);
+    content.appendChild(autofillButton);
     content.appendChild(showInfoButton);
     content.appendChild(generateButton);
     content.appendChild(autofillDetails); // Moved down
@@ -719,18 +822,54 @@ function injectUI() {
     updateCaseModalContent.append(updateCaseModalClose, updateCaseModalTitle, updateCaseModalBody);
     updateCaseModalOverlay.appendChild(updateCaseModalContent);
 
+    // --- Preferences Modal (New) ---
+    const prefsModalOverlay = myCreateElement('div', { id: 'psmh-modal-overlay-prefs' });
+    prefsModalOverlay.classList.add('psmh-modal-overlay');
+    const prefsModalContent = myCreateElement('div', { id: 'psmh-modal-content-prefs' });
+    prefsModalContent.classList.add('psmh-modal-content');
+    const prefsModalClose = myCreateElement('button', { id: 'psmh-modal-close-prefs', innerHTML: '&times;' });
+    const prefsModalTitle = myCreateElement('h5', { textContent: 'Preferences' });
+    const prefsModalBody = myCreateElement('div', { id: 'psmh-modal-body-prefs' });
+    prefsModalBody.appendChild(shortcutContainer); // Move the shortcut setting here
+
+    // --- Create 'From' Address Preference ---
+    const fromAddressContainer = myCreateElement('div', {});
+    fromAddressContainer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #eee;';
+    const fromAddressLabel = myCreateElement('label', { htmlFor: 'psmh-from-address-select', textContent: 'Preferred "From" Address:' });
+    const fromAddressSelect = myCreateElement('select', { id: 'psmh-from-address-select' });
+    fromAddressSelect.style.cssText = 'padding: 4px; border-radius: 4px; border: 1px solid #ccc;';
+    
+    const fromOptions = [
+        'PSM-Support-Email <psm-support-email@atos.net>',
+        'PSM-Support-Email <psm-support-email@eviden.com>'
+    ];
+
+    fromOptions.forEach(addr => {
+        const emailPart = addr.split('<')[1].split('>')[0];
+        const option = myCreateElement('option', { value: addr, textContent: emailPart });
+        fromAddressSelect.appendChild(option);
+    });
+
+    fromAddressContainer.append(fromAddressLabel, fromAddressSelect);
+    prefsModalBody.appendChild(fromAddressContainer);
+
+    prefsModalContent.append(prefsModalClose, prefsModalTitle, prefsModalBody);
+    prefsModalOverlay.appendChild(prefsModalContent);
+
+
     document.body.appendChild(panel);
     document.body.appendChild(toggleButton);
     document.body.appendChild(aboutModalOverlay);
     document.body.appendChild(helpModalOverlay);
     document.body.appendChild(updateCaseModalOverlay);
+    document.body.appendChild(prefsModalOverlay);
     psmhLogger.info('All UI elements appended to the body.');
     
     // --- State and Final Initialization ---
 
     // Store the last visible position of the panel. Initialize with CSS defaults.
     const lastVisiblePosition = {
-        top: 100,
+        top: 140,
         right: 0
     };
 
@@ -744,7 +883,10 @@ function injectUI() {
 
         if (currentRight < 0) { // If it's hidden, show it by restoring its last known position
             psmhLogger.debug('Panel is hidden. Showing it.');
+            // Restore both top and right from the last known position to ensure they are in sync
+            panel.style.top = lastVisiblePosition.top + 'px';
             panel.style.right = lastVisiblePosition.right + 'px';
+            toggleButton.style.top = lastVisiblePosition.top + 'px';
             toggleButton.style.right = (lastVisiblePosition.right + 15) + 'px';
         } else {
             psmhLogger.debug('Panel is visible. Hiding it.');
@@ -786,7 +928,7 @@ function injectUI() {
         }
 
         const emailTo = 'psm-case-update@atos.net';
-        const subject = `Mail subject [PSM-Case_Id: ${recordNumber}]`;
+        const subject = `Sample mail subject... [PSM-Case_Id: ${recordNumber}]`;
         const mailtoHref = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}`;
 
         updateCaseModalBody.innerHTML = `
@@ -799,6 +941,8 @@ function injectUI() {
                 <span class="psmh-copy-icon" data-clipboard-text="${subject}" title="Copy subject">📋</span>
             </div>
             <p class="psmh-modal-instruction">Click the "To:" link to open your email client, or use the copy icons.</p>
+            <p class="psmh-modal-instruction">PS: This function is useful because if you send an email to ${emailTo} 
+             with a subject ending with "[PSM-Case_Id: ${recordNumber}]", this adds the email to the case.</p>
         `;
 
         updateCaseModalBody.querySelectorAll('.psmh-copy-icon').forEach(icon => {
@@ -817,6 +961,30 @@ function injectUI() {
     updateCaseModalClose.onclick = () => updateCaseModalOverlay.classList.remove('psmh-visible');
     updateCaseModalOverlay.onclick = (e) => {
         if (e.target === updateCaseModalOverlay) updateCaseModalOverlay.classList.remove('psmh-visible');
+    };
+
+    // --- Preferences Modal Listeners ---
+    prefsButton.onclick = () => {
+        psmhLogger.debug('Preferences button clicked, showing Preferences modal.');
+        prefsModalOverlay.classList.add('psmh-visible');
+    };
+    prefsModalClose.onclick = () => prefsModalOverlay.classList.remove('psmh-visible');
+
+    // --- FUDFE Clear Button Listeners ---
+    psmhLogger.debug("Attaching FUDFE clear button listeners.");
+    fudfeClearButton.onclick = () => {
+        psmhLogger.debug('FUDFE clear button clicked.');
+        fudfeInput.value = '';
+        fudfeClearButton.style.display = 'none';
+        fudfeInput.focus();
+    };
+    fudfeInput.oninput = () => {
+        psmhLogger.debug(`fudfeInput.oninput event fired. Length: ${fudfeInput.value.length}`);
+        fudfeClearButton.style.display = fudfeInput.value.length > 0 ? 'block' : 'none';
+    };
+
+    prefsModalOverlay.onclick = (e) => {
+        if (e.target === prefsModalOverlay) prefsModalOverlay.classList.remove('psmh-visible');
     };
 
     // --- Developer Tools Auto-collapse Logic ---
@@ -872,6 +1040,20 @@ function injectUI() {
         psmhLogger.debug(`UI: Set 'Close on Alt+C' toggle to saved value: ${isEnabled}`);
     });
     
+    // Listener for the 'From' address dropdown
+    fromAddressSelect.onchange = (e) => {
+        const newAddress = e.target.value;
+        psmhLogger.info(`UI: User changed preferred 'From' address to ${newAddress}. Saving to storage.`);
+        chrome.storage.sync.set({ preferredFromAddress: newAddress });
+    };
+
+    // Populate the 'From' address dropdown from storage
+    chrome.storage.sync.get('preferredFromAddress', (data) => {
+        const savedAddress = data.preferredFromAddress || 'PSM-Support-Email <psm-support-email@atos.net>';
+        fromAddressSelect.value = savedAddress;
+        psmhLogger.debug(`UI: Set 'From' address dropdown to saved value: ${savedAddress}`);
+    });
+
     showInfoButton.onclick = () => {
         psmhLogger.debug("'Show Key Info' button clicked, calling injectCustomHeaderInfo.");
         injectCustomHeaderInfo();
@@ -909,34 +1091,46 @@ function injectUI() {
         try {
             updateStatus('Preparing page for scan...', 'warn');
             
+            // Scroll down to trigger lazy loading of related lists, then scroll specific lists into view.
             psmhLogger.debug("Scrolling to bottom and top to trigger lazy loads.");
             window.scrollTo(0, document.body.scrollHeight);
-            await new Promise(r => setTimeout(r, 500));
+            // Wait for the next browser repaint to ensure the scroll is visible, then wait for content to load.
+            await new Promise(r => requestAnimationFrame(r));
+            await new Promise(r => setTimeout(r, 1000));
             window.scrollTo(0, 0);
+            await new Promise(r => setTimeout(r, 200));
+
+            psmhLogger.debug("Scrolling related lists into view to ensure they are loaded.");
+            const notesList = await waitForElement('lst-related-list-view-manager:has(span[title="Notes"])');
+            if (notesList) {
+                notesList.scrollIntoView({ block: 'center' });
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            const emailsList = await waitForElement('.forceRelatedListPreviewAdvancedGrid:has(span[title="Emails"])');
+            if (emailsList) {
+                emailsList.scrollIntoView({ block: 'center' });
+                await new Promise(r => setTimeout(r, 500));
+            }
             
-            psmhLogger.debug("Scrolling related lists into view.");
-            await waitForElement('lst-related-list-view-manager:has(span[title="Notes"])').then(el => el.scrollIntoView({ block: 'center' }));
-            await new Promise(r => setTimeout(r, 500));
-            await waitForElement('.forceRelatedListPreviewAdvancedGrid:has(span[title="Emails"])').then(el => el.scrollIntoView({ block: 'center' }));
-            await new Promise(r => setTimeout(r, 500));
-            
-            psmhLogger.debug("Scrolling to top to reset view.");
-            window.scrollTo({ top: 0, behavior: 'auto' });
+            window.scrollTo({ top: 0, behavior: 'auto' }); // Reset view to the top
             
             updateStatus('Initiating generation...', 'warn');
-            psmhLogger.info("Sending 'initiateGenerateFullCaseView' message to background script.");
-            chrome.runtime.sendMessage({ action: "initiateGenerateFullCaseView" }, response => {
+            psmhLogger.info("Sending 'startFullViewGeneration' message to background script.");
+            chrome.runtime.sendMessage({ action: "startFullViewGeneration" }, response => {
                 if (chrome.runtime.lastError) {
-                    psmhLogger.error("Error sending message:", chrome.runtime.lastError.message);
-                    updateStatus(`Error: ${chrome.runtime.lastError.message}`, 'error');
-                } else {
-                    psmhLogger.debug("Message sent successfully.");
-                    updateStatus("Processing initiated...", 'warn');
+                    const rawMessage = chrome.runtime.lastError.message;
+                    psmhLogger.error("Error sending message:", rawMessage);
+                    let userMessage = `Error: ${rawMessage}`;
+                    if (rawMessage && rawMessage.includes("message channel closed")) {
+                        userMessage = "A Salesforce tab closed unexpectedly. Please try again.";
+                    }
+                    updateStatus(userMessage, 'error');
                 }
             });
         } catch (error) {
              psmhLogger.error('Error preparing page:', error);
-             updateStatus('Error preparing page!', 'error');
+             updateStatus('Error preparing page! Reload the web page and try again.', 'error');
         } finally {
              psmhLogger.debug("Re-enabling buttons.");
              generateButton.disabled = false;

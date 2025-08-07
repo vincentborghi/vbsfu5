@@ -9,7 +9,7 @@ logger.info("Email Scraper: Script Injected.");
  * @param {number} [timeout=10000] - Timeout in ms
  * @returns {Promise<Element|null>}
  */
-function waitForElement(selector, baseElement = document, timeout = 10000) {
+function waitForElement(selector, baseElement = document, timeout = 12000) {
     logger.debug(`Email Scraper: Waiting for "${selector}"...`);
     return new Promise((resolve) => {
         const startTime = Date.now();
@@ -28,6 +28,23 @@ function waitForElement(selector, baseElement = document, timeout = 10000) {
     });
 }
 
+/**
+ * Finds and clicks the close button on the active Salesforce workspace tab.
+ */
+async function closeSalesforceTab() {
+    // This function operates on the top-level document where the tabs are.
+    const top_document = window.top.document;
+    const closeButtonSelector = 'li.oneConsoleTabItem.slds-is-active .close button';
+    logger.info("Attempting to find and close the active Salesforce tab...");
+    const closeButton = top_document.querySelector(closeButtonSelector);
+
+    if (closeButton) {
+        logger.info("Found active Salesforce tab close button. Clicking it to clean up.", closeButton);
+        closeButton.click();
+    } else {
+        logger.warn(`Could not find the active Salesforce tab close button with selector: "${closeButtonSelector}"`);
+    }
+}
 // Main scraping logic
 async function scrapeEmailDetails() {
     logger.info("Starting scrapeEmailDetails.");
@@ -113,7 +130,11 @@ async function scrapeEmailDetails() {
 
     logger.info("Sending results back to background script:", result);
     chrome.runtime.sendMessage(result);
+
+    // After sending the data, try to close the Salesforce pseudo-tab
+    await closeSalesforceTab();
 }
 
 scrapeEmailDetails();
+
 // End of file
