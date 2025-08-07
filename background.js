@@ -107,7 +107,7 @@ async function fetchAllDetailsViaTabs(itemsToFetch, itemType, senderTabId) {
                 const timeout = setTimeout(() => {
                     chrome.runtime.onMessage.removeListener(listener);
                     reject(new Error(`Timeout waiting for scrape result from tab ${tempTabId}`));
-                }, 12000);
+                }, 18000);
                 const expectedResponseType = itemType === 'Note' ? 'noteScrapeResult' : 'emailScrapeResult';
                 const listener = (message, sender) => {
                     if (sender.tab?.id === tempTabId && message.type === expectedResponseType) {

@@ -96,7 +96,7 @@
 }
 
 .psmh-button {
-    padding: 6px 12px; /* original: 10px 12px; */
+    padding: 4px 8px; /* original: 10px 12px; */
     cursor: pointer;
     border: 1px solid var(--psmh-button-border);
     background-color: var(--psmh-button-bg);
@@ -110,7 +110,7 @@
 .psmh-button.psmh-button-small {
     padding: 4px 8px;
     font-size: 12px;
-    font-weight: normal;
+    font-weight: bold;
     margin-top: 4px;
 }
 
@@ -159,7 +159,8 @@
 
 /* --- Modal Styles --- */
 #psmh-modal-overlay-about,
-#psmh-modal-overlay-help {
+#psmh-modal-overlay-help,
+#psmh-modal-overlay-update-case {
     position: fixed;
     top: 0;
     left: 0;
@@ -176,14 +177,16 @@
 }
 
 #psmh-modal-overlay-about.psmh-visible,
-#psmh-modal-overlay-help.psmh-visible {
+#psmh-modal-overlay-help.psmh-visible,
+#psmh-modal-overlay-update-case.psmh-visible {
     opacity: 1;
     visibility: visible;
     transition: opacity 0.3s;
 }
 
 #psmh-modal-content-about,
-#psmh-modal-content-help {
+#psmh-modal-content-help,
+#psmh-modal-content-update-case {
     background-color: var(--psmh-modal-bg);
     padding: 25px 30px;
     border-radius: 8px;
@@ -196,12 +199,14 @@
 }
 
 #psmh-modal-overlay-about.psmh-visible #psmh-modal-content-about,
-#psmh-modal-overlay-help.psmh-visible #psmh-modal-content-help {
+#psmh-modal-overlay-help.psmh-visible #psmh-modal-content-help,
+#psmh-modal-overlay-update-case.psmh-visible #psmh-modal-content-update-case {
     transform: scale(1);
 }
 
 #psmh-modal-content-about h5,
-#psmh-modal-content-help h5 {
+#psmh-modal-content-help h5,
+#psmh-modal-content-update-case h5 {
     margin-top: 0;
     margin-bottom: 10px;
     color: var(--psmh-title-color);
@@ -209,7 +214,8 @@
 }
 
 #psmh-modal-body-about,
-#psmh-modal-body-help {
+#psmh-modal-body-help,
+#psmh-modal-body-update-case {
     margin-bottom: 20px;
     font-size: 0.95em;
     line-height: 1.5;
@@ -218,7 +224,8 @@
 }
 
 #psmh-modal-close-about,
-#psmh-modal-close-help {
+#psmh-modal-close-help,
+#psmh-modal-close-update-case {
     position: absolute;
     top: 10px;
     right: 15px;
@@ -230,7 +237,8 @@
     padding: 5px;
 }
 #psmh-modal-close-about:hover,
-#psmh-modal-close-help:hover {
+#psmh-modal-close-help:hover,
+#psmh-modal-close-update-case:hover {
     color: #333;
 }
 
@@ -332,6 +340,36 @@
 .psmh-info-value {
     font-weight: 700; /* Bolder font weight */
     color: var(--psmh-button-text);
+}
+
+.psmh-update-modal-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    background-color: #f7f7f7;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e1e1e1;
+}
+
+.psmh-copy-icon {
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    user-select: none; /* Prevent text selection */
+}
+
+.psmh-copy-icon:hover {
+    opacity: 1;
+}
+
+.psmh-modal-instruction {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 15px;
+    text-align: center;
 }
 
 /* End of file */

@@ -8,10 +8,10 @@ psmhLogger.info("UI Panel Injector Loaded.");
  * Waits for an element matching the selector to appear in the DOM.
  * @param {string} selector - CSS selector
  * @param {Element} [baseElement=document] - Base element
- * @param {number} [timeout=6000] - Timeout in ms (lowered as requested).
+ * @param {number} [timeout=8000] - Timeout in ms (lowered as requested).
  * @returns {Promise<Element|null>}
  */
-function waitForElement(selector, baseElement = document, timeout = 6000) {
+function waitForElement(selector, baseElement = document, timeout = 8000) {
     psmhLogger.debug(`Starting waitForElement for selector: "${selector}"`);
     return new Promise((resolve) => {
         const startTime = Date.now();
@@ -586,24 +586,25 @@ function injectUI() {
 
     const caseOpenerContainer = myCreateElement('div', { id: 'psmh-case-opener-container' });
     const caseInput = myCreateElement('input', { id: 'psmh-case-input', type: 'text', placeholder: 'Case Number...', name: 'psmh-case-number', autocomplete: 'on' });
-    const openCaseButton = myCreateElement('button', { id: 'psmh-open-case', textContent: 'Go', className: 'psmh-button' });
+    const openCaseButton = myCreateElement('button', { id: 'psmh-open-case', textContent: 'View', className: 'psmh-button' });
     caseOpenerContainer.append(caseInput, openCaseButton);
 
     const showInfoButton = myCreateElement('button', { id: 'psmh-show-info', textContent: 'Show Key Info', className: 'psmh-button' });
     const generateButton = myCreateElement('button', { id: 'psmh-generate', textContent: 'Generate Full View', className: 'psmh-button' });
-    const copyButton = myCreateElement('button', { id: 'psmh-copy', textContent: 'Copy Record Link', className: 'psmh-button' });
+    const copyButton = myCreateElement('button', { id: 'psmh-copy', textContent: 'Copy Case Link', className: 'psmh-button' });
+    const updateByEmailButton = myCreateElement('button', { id: 'psmh-update-by-email', textContent: 'Update Case by Email', className: 'psmh-button' });
 
     // --- Create Collapsible Sections ---
     const autofillDetails = myCreateElement('details', {});
     const autofillSummary = myCreateElement('summary', { textContent: 'Admin Tools' });
     const autofillContent = myCreateElement('div', { className: 'psmh-section-content' });
-    const autofillButton = myCreateElement('button', { id: 'psmh-autofill-from', textContent: 'Fill From Address', className: 'psmh-button' });
+    const autofillButton = myCreateElement('button', { id: 'psmh-autofill-from', textContent: 'Fill "From" Field', className: 'psmh-button' });
     const autofillCommButton = myCreateElement('button', { id: 'psmh-autofill-comm', textContent: 'Fill Community Info', className: 'psmh-button' });
     
     // Create new FUDFE elements
     const fudfeContainer = myCreateElement('div', { id: 'psmh-fudfe-container' });
     const fudfeActionsContainer = myCreateElement('div', { className: 'psmh-fudfe-actions' });
-    const fudfeInput = myCreateElement('input', { id: 'psmh-fudfe-input', type: 'email', placeholder: 'user.email@domain.com' });
+    const fudfeInput = myCreateElement('input', { id: 'psmh-fudfe-input', /* type: 'email', */ placeholder: 'user@example.com' });
     const lookupLoginButton = myCreateElement('button', { id: 'psmh-lookup-login-btn', textContent: 'Lookup Last Login From Email', className: 'psmh-button psmh-button-small' });
     const fudfeButton = myCreateElement('button', { id: 'psmh-fudfe-button', textContent: 'Fill Contact Data From Email', className: 'psmh-button psmh-button-small' });
     fudfeActionsContainer.append(lookupLoginButton, fudfeButton);
@@ -612,7 +613,7 @@ function injectUI() {
     autofillContent.append(autofillButton, autofillCommButton, fudfeContainer); // Group autofill buttons
     autofillDetails.append(autofillSummary, autofillContent);
 
-    const devDetails = myCreateElement('details', {});
+    const devDetails = myCreateElement('details', { id: 'psmh-dev-tools-details' });
     const devSummary = myCreateElement('summary', { textContent: 'Developer Tools' });
     const devContent = myCreateElement('div', { className: 'psmh-section-content' });
     
@@ -633,7 +634,7 @@ function injectUI() {
 
     const shortcutContainer = myCreateElement('div', {});
     shortcutContainer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 6px;';
-    const shortcutLabel = myCreateElement('label', { htmlFor: 'psmh-close-shortcut-toggle', textContent: 'Close Tab (Alt+C):' });
+    const shortcutLabel = myCreateElement('label', { htmlFor: 'psmh-close-shortcut-toggle', textContent: 'Enable Alt+C  (Close Tab):' });
     const shortcutToggle = myCreateElement('input', { id: 'psmh-close-shortcut-toggle', type: 'checkbox' });
     shortcutContainer.append(shortcutLabel, shortcutToggle);
     devContent.append(shortcutContainer); // Add to developer tools
@@ -651,6 +652,7 @@ function injectUI() {
     // New button order
     content.appendChild(caseOpenerContainer);
     content.appendChild(copyButton); // Moved up
+    content.appendChild(updateByEmailButton);
     content.appendChild(showInfoButton);
     content.appendChild(generateButton);
     content.appendChild(autofillDetails); // Moved down
@@ -706,10 +708,22 @@ function injectUI() {
     helpModalContent.append(helpModalClose, helpModalTitle, helpModalBody);
     helpModalOverlay.appendChild(helpModalContent);
 
+    // --- Update Case by Email Modal ---
+    const updateCaseModalOverlay = myCreateElement('div', { id: 'psmh-modal-overlay-update-case' });
+    updateCaseModalOverlay.classList.add('psmh-modal-overlay');
+    const updateCaseModalContent = myCreateElement('div', { id: 'psmh-modal-content-update-case' });
+    updateCaseModalContent.classList.add('psmh-modal-content');
+    const updateCaseModalClose = myCreateElement('button', { id: 'psmh-modal-close-update-case', innerHTML: '&times;' });
+    const updateCaseModalTitle = myCreateElement('h5', { textContent: 'Update Case by Email' });
+    const updateCaseModalBody = myCreateElement('div', { id: 'psmh-modal-body-update-case' });
+    updateCaseModalContent.append(updateCaseModalClose, updateCaseModalTitle, updateCaseModalBody);
+    updateCaseModalOverlay.appendChild(updateCaseModalContent);
+
     document.body.appendChild(panel);
     document.body.appendChild(toggleButton);
     document.body.appendChild(aboutModalOverlay);
     document.body.appendChild(helpModalOverlay);
+    document.body.appendChild(updateCaseModalOverlay);
     psmhLogger.info('All UI elements appended to the body.');
     
     // --- State and Final Initialization ---
@@ -759,6 +773,72 @@ function injectUI() {
         if (e.target === helpModalOverlay) helpModalOverlay.classList.remove('psmh-visible');
     };
     
+    // --- Update Case Modal Listeners ---
+    updateByEmailButton.onclick = async () => {
+        psmhLogger.info("'Update Case by Email' button clicked.");
+        updateStatus('Getting case number...', 'info');
+
+        const recordNumber = await findRecordNumber();
+        if (!recordNumber) {
+            psmhLogger.error("Could not find record number for Update Case by Email.");
+            updateStatus('Error: Case # not found.', 'error');
+            return;
+        }
+
+        const emailTo = 'psm-case-update@atos.net';
+        const subject = `Mail subject [PSM-Case_Id: ${recordNumber}]`;
+        const mailtoHref = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}`;
+
+        updateCaseModalBody.innerHTML = `
+            <div class="psmh-update-modal-row">
+                <a href="${mailtoHref}" id="psmh-update-mailto-link"><strong>To:</strong> ${emailTo}</a>
+                <span class="psmh-copy-icon" data-clipboard-text="${emailTo}" title="Copy email address">📋</span>
+            </div>
+            <div class="psmh-update-modal-row">
+                <span><strong>Subject:</strong> ${subject}</span>
+                <span class="psmh-copy-icon" data-clipboard-text="${subject}" title="Copy subject">📋</span>
+            </div>
+            <p class="psmh-modal-instruction">Click the "To:" link to open your email client, or use the copy icons.</p>
+        `;
+
+        updateCaseModalBody.querySelectorAll('.psmh-copy-icon').forEach(icon => {
+            icon.onclick = (e) => {
+                const textToCopy = e.target.dataset.clipboardText;
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    updateStatus(`Copied: "${textToCopy.substring(0, 20)}..."`, 'success');
+                }).catch(err => {
+                    updateStatus('Error: Copy failed.', 'error');
+                });
+            };
+        });
+
+        updateCaseModalOverlay.classList.add('psmh-visible');
+    };
+    updateCaseModalClose.onclick = () => updateCaseModalOverlay.classList.remove('psmh-visible');
+    updateCaseModalOverlay.onclick = (e) => {
+        if (e.target === updateCaseModalOverlay) updateCaseModalOverlay.classList.remove('psmh-visible');
+    };
+
+    // --- Developer Tools Auto-collapse Logic ---
+    let devToolsCollapseTimer = null;
+    devDetails.addEventListener('toggle', () => {
+        if (devDetails.open) {
+            psmhLogger.debug('Developer Tools opened. Starting 30-second auto-collapse timer.');
+            // Start a timer to close it after 30 seconds
+            devToolsCollapseTimer = setTimeout(() => {
+                psmhLogger.info('Auto-collapsing Developer Tools after 30 seconds.');
+                devDetails.open = false;
+            }, 30000); // 30 seconds
+        } else {
+            // If the user closes it manually, cancel the timer
+            if (devToolsCollapseTimer) {
+                psmhLogger.debug('Developer Tools manually closed. Cancelling auto-collapse timer.');
+                clearTimeout(devToolsCollapseTimer);
+                devToolsCollapseTimer = null;
+            }
+        }
+    });
+
     // Animate the panel into view on initial load
     setTimeout(() => {
         panel.style.right = lastVisiblePosition.right + 'px';
@@ -909,13 +989,13 @@ function injectUI() {
 
     copyButton.onclick = async () => {
         psmhLogger.info("'Copy Record Link' button clicked.");
-        updateStatus('Copying link...', 'info');
+        updateStatus('Copying case link...', 'info');
         
         // Assumes findRecordNumber is in content.js and available globally.
         const recordNumber = await findRecordNumber(); 
         psmhLogger.debug(`Found record number: "${recordNumber}"`);
         const currentUrl = window.location.href;
-        let objectType = 'Unknown';
+        let objectType = 'Case';
         
         if (currentUrl.includes('/Case/')) {
             objectType = 'Case';
@@ -926,13 +1006,17 @@ function injectUI() {
         
         if (recordNumber && currentUrl) {
             const linkText = `${objectType} ${recordNumber}`;
-            const richTextHtml = `<a href="${currentUrl}">${linkText}</a>`;
-            const blobHtml = new Blob([richTextHtml], { type: 'text/html' });
-            const blobText = new Blob([linkText], { type: 'text/plain' });
+
+            // Use non-breaking spaces (&nbsp; in HTML, \u00A0 in JS) to prevent trimming by other apps.
+            const richTextWithNbsp = `&nbsp;<a href="${currentUrl}">${linkText}</a>&nbsp;`;
+            const plainTextWithNbsp = `\u00A0${linkText}\u00A0`;
+
+            const blobHtml = new Blob([richTextWithNbsp], { type: 'text/html' });
+            const blobText = new Blob([plainTextWithNbsp], { type: 'text/plain' });
 
             try {
                 await navigator.clipboard.write([new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })]);
-                psmhLogger.info('Successfully wrote to clipboard.');                
+                psmhLogger.info('Successfully wrote to clipboard with surrounding non-breaking spaces.');
                 updateStatus(`Copied: ${linkText}`, 'success');
             } catch(err) {
                 psmhLogger.error('Clipboard write failed.', err);
@@ -959,4 +1043,5 @@ function init() {
 }
 
 init();
+
 // End of file
